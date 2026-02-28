@@ -13,7 +13,6 @@ import java.util.UUID;
 @Builder
 public class InventoryProduct {
 
-    private UUID subCategoryUuid;
     private UUID uuid;
     private String name;
     private String description;

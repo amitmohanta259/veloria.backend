@@ -147,8 +147,8 @@ public class AwsService extends AppService {
         return null;
     }
 
-    public String getProductImagePath(String subCategory, String fileName) {
-        return subCategory.toLowerCase() + "/product/images/" + UUID.randomUUID() + "_" + fileName;
+    public String getProductImagePath(String subCategory, String fileName, String productName) {
+        return "subCategory" + subCategory.toLowerCase() + "/" + productName.toLowerCase() + "/" + UUID.randomUUID() + "_" + fileName;
     }
 
     public String getPreSignedUrlForBase64(String key) throws IOException {
