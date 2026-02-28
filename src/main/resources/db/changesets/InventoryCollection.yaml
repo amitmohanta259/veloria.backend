@@ -1,0 +1,48 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_inventory_collection_table
+      author: Abhishek
+      changes:
+        - createTable:
+            tableName: inventory_collection
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: uuid
+                  type: uuid
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: category_id
+                  type: bigint
+              - column:
+                  name: name
+                  type: text
+              - column:
+                  name: description
+                  type: text
+              - column:
+                  name: active
+                  type: boolean
+              - column:
+                  name: archive
+                  type: boolean
+              - column:
+                  name: created
+                  type: timestamp
+              - column:
+                  name: modified
+                  type: timestamp
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: modified_by
+                  type: varchar(255)

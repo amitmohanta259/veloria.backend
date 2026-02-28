@@ -1,0 +1,58 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: master-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/valoria
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  hikari:
+    maximum-pool-size: 0
+    minimum-idle: 0
+    connection-timeout: 300000
+    idle-timeout: 15000
+    max-lifetime: 35000
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+
+keycloak:
+  realm: master
+  tenant-realm: tenant-group
+  base-url: https://dev.auth.komdihealth.com
+  auth-url: https://dev.auth.komdihealth.com
+  client-id: service-client
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:dummy-client-secret}
+
+logging:
+  level:
+    reactor:
+      netty: DEBUG
+    org:
+      springframework:
+        cloud:
+          gateway: DEBUG
+
+aws:
+  access-key: ${AWS_ACCESS_KEY:dummy-access-key}
+  secret-key: ${AWS_SECRET_KEY:dummy-secret-key}
+  region: us-east-2
+  s3:
+    bucket-name: ${AWS_S3_BUCKET_NAME:veloria-image}

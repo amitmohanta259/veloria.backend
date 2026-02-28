@@ -1,0 +1,13 @@
+databaseChangeLog:
+  - include:
+      file: db/changesets/User.yaml
+  - include:
+      file: db/changesets/InventoryCategory.yaml
+  - include:
+      file: db/changesets/InventoryCollection.yaml
+  - include:
+      file: db/changesets/InventorySubCategory.yaml
+  - include:
+      file: db/changesets/InventoryProduct.yaml
+  - include:
+      file: db/changesets/InventoryProductImages.yaml

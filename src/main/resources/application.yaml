@@ -1,0 +1,83 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: master-service
+  servlet:
+    multipart:
+      max-file-size: 10GB
+      max-request-size: 10GB
+  main:
+    allow-circular-references: true
+
+  profiles:
+    active: local
+
+  security:
+    oauth2:
+      resourceserver:
+        opaquetoken:
+          introspection-uri: ${keycloak.base-url}/realms/${keycloak.realm}/protocol/openid-connect/token/introspect
+          client-id: ${keycloak.client-id}
+          client-secret: ${keycloak.client-secret}
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USER}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  hikari:
+    maximum-pool-size: 2
+    minimum-idle: 5
+
+  liquibase:
+    change-log: classpath:db/master.yaml
+    enabled: true
+
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 50000
+        readTimeout: 50000
+        loggerLevel: basic
+    notification:
+      url: http://localhost:8002/
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+
+springdoc:
+  swagger-ui:
+    path: /api/master/swagger-ui.html
+  api-docs:
+    path: /api/master/api-docs
+  show-actuator: false
+
+aws:
+  access-key: ${AWS_ACCESS_KEY:dummy-access-key}
+  secret-key: ${AWS_SECRET_KEY:dummy-secret-key}
+  region: us-east-1
+  s3:
+    bucket-name: ${AWS_S3_BUCKET_NAME:bucket-name}
+  iam:
+    access-key: ${AWS_IAM_ACCESS_KEY:dummy-access-key}
+    secret-key: ${AWS_IAM_SECRET_KEY:dummy-secret-key}
+  template:
+    signup: SignUp
+    forgot-password: ForgotPassword
+    recipient-added: RecipientAdded
+    invite-recipient: InviteRecipient
+    set-password: SetPassword
+    invite-patient: InvitePatient
+    forgot-password-otp: ForgotPasswordOtp
+    assign-task: AssignTask
+    group-message: GroupMessage
+  sender:
+    email: noreply@komdihealth.com
+
+link:
+  expiry: 60

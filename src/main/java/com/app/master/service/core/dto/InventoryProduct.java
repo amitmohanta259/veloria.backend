@@ -1,0 +1,26 @@
+package com.app.master.service.core.dto;
+
+import com.app.master.service.core.enums.InventoryCurrency;
+import com.app.master.service.core.enums.InventoryVisibility;
+import lombok.*;
+
+import java.util.UUID;
+
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+public class InventoryProduct {
+
+    private UUID subCategoryUuid;
+    private UUID uuid;
+    private String name;
+    private String description;
+    private String skuId;
+    private Long price;
+    private InventoryCurrency priceCurrency;
+    private Long initialStock;
+    private InventoryVisibility visibility;
+    private Boolean draft;
+}

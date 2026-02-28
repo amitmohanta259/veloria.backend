@@ -1,0 +1,39 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_inventory_product_images_table
+      author: Abhishek
+      changes:
+        - createTable:
+            tableName: inventory_product_images
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: uuid
+                  type: uuid
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: product_id
+                  type: bigint
+              - column:
+                  name: image
+                  type: text
+              - column:
+                  name: created
+                  type: timestamp
+              - column:
+                  name: modified
+                  type: timestamp
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: modified_by
+                  type: varchar(255)

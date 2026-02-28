@@ -1,0 +1,9 @@
+# macOS
+.DS_Store
+
+# Java / Maven
+target/
+
+# Secrets
+application-local.yaml
+*.env
