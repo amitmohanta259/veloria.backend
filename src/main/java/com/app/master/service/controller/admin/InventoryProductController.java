@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @CrossOrigin(origins = {"*"})
@@ -23,12 +24,50 @@ public class InventoryProductController extends AppController {
         this.service = service;
     }
 
-    @PostMapping("/create")
-    public ResponseEntity<Response> createInventoryProduct(@RequestPart("product") InventoryProduct product,
+    @PostMapping("/create/{subCategoryUuid}")
+    public ResponseEntity<Response> createInventoryProduct(@PathVariable UUID subCategoryUuid,
+                                                           @RequestPart("product") InventoryProduct product,
                                                            @RequestPart("images") List<MultipartFile> images) throws VeloriaException {
 
-        service.createInventoryProduct(product, images);
+        service.createInventoryProduct(subCategoryUuid, product, images);
         return success(ResponseCode.CREATED, "Inventory product created successfully");
+    }
+
+    @PutMapping("/update/{productUuid}")
+    public ResponseEntity<Response> updateInventoryProduct(@PathVariable UUID productUuid,
+                                                           @RequestPart("product") InventoryProduct product,
+                                                           @RequestPart("images") List<MultipartFile> images) throws VeloriaException {
+
+        service.updateInventoryProduct(productUuid, product, images);
+        return success(ResponseCode.UPDATED, "Inventory product updated successfully");
+    }
+
+    @GetMapping("/{uuid}")
+    public ResponseEntity<Response> getInventoryProductByUuid(@PathVariable UUID uuid) throws VeloriaException {
+
+        return data(ResponseCode.FETCHED, "Inventory product by uuid fetched successfully", service.getInventoryProductByUuid(uuid));
+    }
+
+    @PutMapping("/toggle")
+    public ResponseEntity<Response> toggleInventoryProduct(@RequestParam(required = false) UUID productUuid) throws VeloriaException {
+
+        return success(ResponseCode.UPDATED, service.toggleInventoryProduct(productUuid) ? "Inventory product activated successfully" : "Inventory product de-activated successfully");
+    }
+
+    @DeleteMapping("/{uuid}")
+    public ResponseEntity<Response> deleteInventoryProduct(@PathVariable UUID uuid) throws VeloriaException {
+
+        service.deleteInventoryProduct(uuid);
+        return success(ResponseCode.DELETED, "Inventory product deleted successfully");
+    }
+
+    @GetMapping("/all")
+    public ResponseEntity<Response> getInventoryProductList(@RequestParam(required = false) UUID subCategoryUuid,
+                                                            @RequestParam(required = false, defaultValue = "0") int page,
+                                                            @RequestParam(required = false, defaultValue = "10") int pageSize,
+                                                            @RequestParam(required = false) String search) throws VeloriaException {
+
+        return data(ResponseCode.FETCHED, "All inventory product fetched successfully", service.getInventoryProductList(subCategoryUuid, page, pageSize, search));
     }
 
 }
