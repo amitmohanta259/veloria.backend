@@ -1,0 +1,30 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_staff_family_lineage_table
+      author: Abhishek
+      changes:
+        - createTable:
+            tableName: staff_family_lineage
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: staff_id
+                  type: bigint
+              - column:
+                  name: full_name
+                  type: varchar(255)
+              - column:
+                  name: relation
+                  type: varchar(255)
+              - column:
+                  name: contact_number
+                  type: varchar(255)
+              - column:
+                  name: document
+                  type: varchar(255)

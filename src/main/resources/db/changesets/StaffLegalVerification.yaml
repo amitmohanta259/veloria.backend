@@ -1,0 +1,27 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_staff_legal_verification_table
+      author: Abhishek
+      changes:
+        - createTable:
+            tableName: staff_legal_verification
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: staff_id
+                  type: bigint
+              - column:
+                  name: document_type
+                  type: varchar(255)
+              - column:
+                  name: identification_number
+                  type: varchar(255)
+              - column:
+                  name: document
+                  type: varchar(255)
