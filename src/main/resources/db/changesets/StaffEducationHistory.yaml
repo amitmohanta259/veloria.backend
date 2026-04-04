@@ -1,0 +1,36 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_staff_education_history_table
+      author: Abhishek
+      changes:
+        - createTable:
+            tableName: staff_education_history
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: staff_id
+                  type: bigint
+              - column:
+                  name: level
+                  type: varchar(255)
+              - column:
+                  name: institute
+                  type: text
+              - column:
+                  name: city
+                  type: varchar(255)
+              - column:
+                  name: year
+                  type: varchar(255)
+              - column:
+                  name: percentage
+                  type: varchar(255)
+              - column:
+                  name: certificate
+                  type: varchar(255)

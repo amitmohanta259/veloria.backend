@@ -6,7 +6,7 @@ spring:
     name: master-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/valoria
+    url: jdbc:postgresql://localhost:5432/postgres
     username: postgres
     password: postgres
     driver-class-name: org.postgresql.Driver
@@ -49,10 +49,3 @@ logging:
       springframework:
         cloud:
           gateway: DEBUG
-
-aws:
-  access-key: ${AWS_ACCESS_KEY:dummy-access-key}
-  secret-key: ${AWS_SECRET_KEY:dummy-secret-key}
-  region: us-east-2
-  s3:
-    bucket-name: ${AWS_S3_BUCKET_NAME:veloria-image}

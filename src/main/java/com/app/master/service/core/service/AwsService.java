@@ -151,6 +151,26 @@ public class AwsService extends AppService {
         return "subCategory" + subCategory.toLowerCase() + "/" + productName.toLowerCase() + "/" + UUID.randomUUID() + "_" + fileName;
     }
 
+    public String getStaffAvatarPath(UUID staffUuid, String fileName) {
+        String name = StringUtils.isNotBlank(fileName) ? fileName : "avatar";
+        return "staff/" + staffUuid + "/avatar/" + UUID.randomUUID() + "/" + name;
+    }
+
+    public String getStaffEducationDocumentPath(UUID staffUuid, String fileName) {
+        String name = StringUtils.isNotBlank(fileName) ? fileName : "document";
+        return "staff/" + staffUuid + "/education/" + UUID.randomUUID() + "/" + name;
+    }
+
+    public String getStaffFamilyDocumentPath(UUID staffUuid, String fileName) {
+        String name = StringUtils.isNotBlank(fileName) ? fileName : "document";
+        return "staff/" + staffUuid + "/family/" + UUID.randomUUID() + "/" + name;
+    }
+
+    public String getStaffLegalDocumentPath(UUID staffUuid, String fileName) {
+        String name = StringUtils.isNotBlank(fileName) ? fileName : "document";
+        return "staff/" + staffUuid + "/legal/" + UUID.randomUUID() + "/" + name;
+    }
+
     public String getPreSignedUrlForBase64(String key) throws IOException {
         if (StringUtils.isBlank(key)) return null;
         try {

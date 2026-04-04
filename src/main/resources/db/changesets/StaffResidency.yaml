@@ -1,0 +1,36 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_staff_residency_table
+      author: Abhishek
+      changes:
+        - createTable:
+            tableName: staff_residency
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: staff_id
+                  type: bigint
+              - column:
+                  name: house_no
+                  type: text
+              - column:
+                  name: lane
+                  type: text
+              - column:
+                  name: city
+                  type: varchar(255)
+              - column:
+                  name: state
+                  type: varchar(255)
+              - column:
+                  name: pin
+                  type: varchar(255)
+              - column:
+                  name: type
+                  type: varchar(255)

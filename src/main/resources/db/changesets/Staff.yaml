@@ -1,0 +1,60 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_staff_table
+      author: Abhishek
+      changes:
+        - createTable:
+            tableName: staff
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: uuid
+                  type: uuid
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: avatar
+                  type: varchar(255)
+              - column:
+                  name: department
+                  type: varchar(255)
+              - column:
+                  name: designation
+                  type: varchar(255)
+              - column:
+                  name: work_email
+                  type: varchar(255)
+              - column:
+                  name: phone
+                  type: varchar(255)
+              - column:
+                  name: joining_date
+                  type: date
+              - column:
+                  name: resign_date
+                  type: date
+              - column:
+                  name: active
+                  type: boolean
+              - column:
+                  name: archive
+                  type: boolean
+              - column:
+                  name: created
+                  type: timestamp
+              - column:
+                  name: modified
+                  type: timestamp
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: modified_by
+                  type: varchar(255)

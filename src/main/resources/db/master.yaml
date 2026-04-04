@@ -11,3 +11,15 @@ databaseChangeLog:
       file: db/changesets/InventoryProduct.yaml
   - include:
       file: db/changesets/InventoryProductImages.yaml
+  - include:
+      file: db/changesets/Staff.yaml
+  - include:
+      file: db/changesets/StaffEducationHistory.yaml
+  - include:
+      file: db/changesets/StaffFamilyLineage.yaml
+  - include:
+      file: db/changesets/StaffInsuranceCoverage.yaml
+  - include:
+      file: db/changesets/StaffLegalVerification.yaml
+  - include:
+      file: db/changesets/StaffResidency.yaml
