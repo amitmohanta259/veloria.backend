@@ -35,4 +35,10 @@ public class StaffEntity extends Base {
     private String phone;
     private LocalDate joiningDate;
     private LocalDate resignDate;
+
+    @Builder.Default
+    private Boolean active = Boolean.TRUE;
+
+    @Builder.Default
+    private Boolean archive = Boolean.FALSE;
 }

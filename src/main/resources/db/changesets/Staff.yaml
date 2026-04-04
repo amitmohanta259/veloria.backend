@@ -41,6 +41,12 @@ databaseChangeLog:
                   name: resign_date
                   type: date
               - column:
+                  name: active
+                  type: boolean
+              - column:
+                  name: archive
+                  type: boolean
+              - column:
                   name: created
                   type: timestamp
               - column:
