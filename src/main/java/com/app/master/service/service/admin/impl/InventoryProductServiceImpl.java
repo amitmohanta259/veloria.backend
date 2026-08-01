@@ -14,6 +14,7 @@ import com.app.master.service.repository.admin.InventoryProductRepository;
 import com.app.master.service.repository.admin.InventorySubCategoryRepository;
 import com.app.master.service.service.admin.InventoryProductService;
 import com.google.common.base.Strings;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -23,8 +24,14 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 @Service
 public class InventoryProductServiceImpl extends AppService implements InventoryProductService {
@@ -33,13 +40,16 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
     private final InventoryProductImagesRepository imagesRepository;
     private final InventorySubCategoryRepository subCategoryRepository;
     private final AwsService awsService;
+    private final Executor taskExecutor;
 
     public InventoryProductServiceImpl(InventoryProductRepository productRepository, InventoryProductImagesRepository imagesRepository,
-                                       InventorySubCategoryRepository subCategoryRepository, AwsService awsService) {
+                                       InventorySubCategoryRepository subCategoryRepository, AwsService awsService,
+                                       @Qualifier("taskExecutor") Executor taskExecutor) {
         this.productRepository = productRepository;
         this.imagesRepository = imagesRepository;
         this.subCategoryRepository = subCategoryRepository;
         this.awsService = awsService;
+        this.taskExecutor = taskExecutor;
     }
 
     @Override
@@ -128,18 +138,45 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
         search = Strings.isNullOrEmpty(search) ? null : search.toLowerCase();
 
         Page<InventoryProductListResponse> responses = productRepository.getInventoryProductList(subCategoryUuid, search, pageable);
-        for (InventoryProductListResponse res : responses) {
-            List<String> images = imagesRepository.getInventoryProductListImage(res.getUuid());
-            for (int i = 0; i < images.size(); i++) {
-                try {
-                    images.set(i, awsService.getViewablePreSignedUrl(images.get(i)));
-                } catch (Exception e) {
-                    continue;
-                }
-            }
-            res.setImages(images);
-        }
+        attachPresignedImages(responses.getContent());
         return responses;
+    }
+
+    private void attachPresignedImages(List<InventoryProductListResponse> products) {
+        if (products.isEmpty()) {
+            return;
+        }
+
+        List<UUID> productUuids = products.stream().map(InventoryProductListResponse::getUuid).collect(Collectors.toList());
+
+        // One query for the whole page instead of one query per product.
+        Map<UUID, List<String>> imageKeysByProduct = new HashMap<>();
+        for (Object[] row : imagesRepository.getInventoryProductListImages(productUuids)) {
+            imageKeysByProduct.computeIfAbsent((UUID) row[0], k -> new ArrayList<>()).add((String) row[1]);
+        }
+
+        // Presign every image concurrently on the shared task executor instead of
+        // one-at-a-time on the request thread.
+        List<CompletableFuture<Void>> presignTasks = new ArrayList<>();
+        for (InventoryProductListResponse res : products) {
+            List<String> imageKeys = imageKeysByProduct.getOrDefault(res.getUuid(), List.of());
+            List<String> presignedUrls = new ArrayList<>(Collections.nCopies(imageKeys.size(), null));
+            res.setImages(presignedUrls);
+
+            for (int i = 0; i < imageKeys.size(); i++) {
+                int index = i;
+                String imageKey = imageKeys.get(i);
+                presignTasks.add(CompletableFuture.runAsync(() -> {
+                    try {
+                        presignedUrls.set(index, awsService.getViewablePreSignedUrl(imageKey));
+                    } catch (Exception e) {
+                        // leave null - same as the previous best-effort behaviour
+                    }
+                }, taskExecutor));
+            }
+        }
+
+        CompletableFuture.allOf(presignTasks.toArray(new CompletableFuture[0])).join();
     }
 
     private void uploadProductImages(Long productId, String subCategoryName, List<MultipartFile> images, String productName) throws VeloriaException {

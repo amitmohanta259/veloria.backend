@@ -14,12 +14,14 @@ public interface InventoryProductImagesRepository extends JpaRepository<Inventor
 
     List<InventoryProductImagesEntity> findByProductId(Long productId);
 
+    // Fetches images for a whole page of products in one query instead of
+    // one query per product (N+1).
     @Query(value = """
-            SELECT ipi.image
+            SELECT ip.uuid, ipi.image
             FROM InventoryProductImagesEntity ipi
             LEFT JOIN InventoryProductEntity ip ON ip.id = ipi.productId
-            WHERE (:uuid IS NULL OR ip.uuid = :uuid)
+            WHERE ip.uuid IN :uuids
             """)
-    List<String> getInventoryProductListImage(@Param("uuid") UUID uuid);
+    List<Object[]> getInventoryProductListImages(@Param("uuids") List<UUID> uuids);
 
 }
