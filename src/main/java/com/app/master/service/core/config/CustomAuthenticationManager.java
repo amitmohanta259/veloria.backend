@@ -11,16 +11,18 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 public class CustomAuthenticationManager implements AuthenticationManager {
 
-    private String baseurl;
+    // Built once and reused for every request so its cached JWKS lookup
+    // (see ValidateToken) actually persists across requests instead of
+    // re-fetching Keycloak's signing keys on every single call.
+    private final ValidateToken validateToken;
 
     public CustomAuthenticationManager(String baseurl) {
-        this.baseurl = baseurl;
+        this.validateToken = new ValidateToken(baseurl);
     }
 
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
         System.out.println("Authentication get request to verify the token.");
-        ValidateToken validateToken = new ValidateToken(baseurl);
         System.out.println("Token Validated.");
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         HttpServletRequest request = null;

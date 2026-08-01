@@ -8,23 +8,44 @@ import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jose.jwk.JWK;
-import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.JWKMatcher;
+import com.nimbusds.jose.jwk.JWKSelector;
 import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.jwk.source.RemoteJWKSet;
+import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jwt.SignedJWT;
 import org.springframework.beans.factory.annotation.Value;
 
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.interfaces.RSAPublicKey;
 import java.text.ParseException;
 import java.util.Date;
+import java.util.List;
 
 public class ValidateToken extends AppService {
 
     @Value("${keycloak.base-url}")
     private String baseUrl;
 
+    // Cached against Keycloak's JWKS endpoint: served from cache on every call,
+    // and only re-fetched (rate-limited) when a key id isn't found in the cache -
+    // i.e. after Keycloak rotates its signing keys. See RemoteJWKSet/DefaultJWKSetCache.
+    private final JWKSource<SecurityContext> jwkSource;
+
     public ValidateToken(String baseurl) {
         this.baseUrl = baseurl;
+        this.jwkSource = buildJwkSource(baseurl, Constant.REALM);
+    }
+
+    private static JWKSource<SecurityContext> buildJwkSource(String baseUrl, String realm) {
+        try {
+            String jwksUri = baseUrl + "/realms/" + realm + "/protocol/openid-connect/certs";
+            return new RemoteJWKSet<>(new URL(jwksUri));
+        } catch (MalformedURLException e) {
+            throw new IllegalStateException("Invalid Keycloak JWKS URL", e);
+        }
     }
 
     public boolean isAuthorize(String accessToken) throws VeloriaException {
@@ -40,11 +61,7 @@ public class ValidateToken extends AppService {
         assert signedJWT != null;
         RSAKey rsaKey;
 
-        try {
-            rsaKey = getPublicKeyFromKeycloakRealm(signedJWT.getHeader().getKeyID(), Constant.REALM);
-        } catch (Exception e) {
-            rsaKey = getPublicKeyFromKeycloakRealm(signedJWT.getHeader().getKeyID(), Constant.REALM);
-        }
+        rsaKey = getPublicKeyFromKeycloakRealm(signedJWT.getHeader().getKeyID());
 
         if (verifySignature(signedJWT, rsaKey)) {
             Date expirationDate = null;
@@ -70,13 +87,12 @@ public class ValidateToken extends AppService {
         }
     }
 
-    private RSAKey getPublicKeyFromKeycloakRealm(String keyId, String realm) throws VeloriaException {
-
-        String jwksUri = baseUrl + "/realms/" + realm + "/protocol/openid-connect/certs";
+    private RSAKey getPublicKeyFromKeycloakRealm(String keyId) throws VeloriaException {
 
         try {
-            JWKSet jwkSet = JWKSet.load(new URL(jwksUri));
-            JWK jwk = jwkSet.getKeyByKeyId(keyId);
+            JWKSelector selector = new JWKSelector(new JWKMatcher.Builder().keyID(keyId).build());
+            List<JWK> matches = jwkSource.get(selector, null);
+            JWK jwk = matches.isEmpty() ? null : matches.get(0);
 
             // Convert to RSAKey
             if (jwk instanceof RSAKey) {
