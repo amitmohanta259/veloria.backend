@@ -46,3 +46,13 @@ databaseChangeLog:
               - column:
                   name: modified_by
                   type: varchar(255)
+  - changeSet:
+      id: add_index_inventory_collection_category_id
+      author: veloria-perf
+      changes:
+        - createIndex:
+            tableName: inventory_collection
+            indexName: idx_inventory_collection_category_id
+            columns:
+              - column:
+                  name: category_id

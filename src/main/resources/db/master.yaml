@@ -23,3 +23,5 @@ databaseChangeLog:
       file: db/changesets/StaffLegalVerification.yaml
   - include:
       file: db/changesets/StaffResidency.yaml
+  - include:
+      file: db/changesets/SearchIndexes.yaml

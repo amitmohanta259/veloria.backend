@@ -1,0 +1,34 @@
+databaseChangeLog:
+  - changeSet:
+      id: enable_pg_trgm_extension
+      author: veloria-perf
+      changes:
+        - sql:
+            sql: CREATE EXTENSION IF NOT EXISTS pg_trgm;
+  # Plain btree indexes can't serve the LOWER(name) LIKE '%search%' queries used
+  # by the inventory list endpoints - a trigram GIN index is needed for those
+  # to stay fast instead of falling back to a sequential scan as tables grow.
+  - changeSet:
+      id: add_trgm_index_inventory_category_name
+      author: veloria-perf
+      changes:
+        - sql:
+            sql: CREATE INDEX idx_inventory_category_name_trgm ON inventory_category USING gin (name gin_trgm_ops);
+  - changeSet:
+      id: add_trgm_index_inventory_collection_name
+      author: veloria-perf
+      changes:
+        - sql:
+            sql: CREATE INDEX idx_inventory_collection_name_trgm ON inventory_collection USING gin (name gin_trgm_ops);
+  - changeSet:
+      id: add_trgm_index_inventory_sub_category_name
+      author: veloria-perf
+      changes:
+        - sql:
+            sql: CREATE INDEX idx_inventory_sub_category_name_trgm ON inventory_sub_category USING gin (name gin_trgm_ops);
+  - changeSet:
+      id: add_trgm_index_inventory_product_name
+      author: veloria-perf
+      changes:
+        - sql:
+            sql: CREATE INDEX idx_inventory_product_name_trgm ON inventory_product USING gin (name gin_trgm_ops);

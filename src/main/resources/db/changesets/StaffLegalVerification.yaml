@@ -25,3 +25,13 @@ databaseChangeLog:
               - column:
                   name: document
                   type: varchar(255)
+  - changeSet:
+      id: add_index_staff_legal_verification_staff_id
+      author: veloria-perf
+      changes:
+        - createIndex:
+            tableName: staff_legal_verification
+            indexName: idx_staff_legal_verification_staff_id
+            columns:
+              - column:
+                  name: staff_id

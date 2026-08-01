@@ -37,3 +37,13 @@ databaseChangeLog:
               - column:
                   name: modified_by
                   type: varchar(255)
+  - changeSet:
+      id: add_index_inventory_product_images_product_id
+      author: veloria-perf
+      changes:
+        - createIndex:
+            tableName: inventory_product_images
+            indexName: idx_inventory_product_images_product_id
+            columns:
+              - column:
+                  name: product_id
