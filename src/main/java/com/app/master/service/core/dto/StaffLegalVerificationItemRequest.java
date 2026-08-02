@@ -11,6 +11,5 @@ public class StaffLegalVerificationItemRequest {
 
     private String documentType;
     private String identificationNumber;
-    /** Existing S3 URL when updating without re-uploading */
     private String documentUrl;
 }
