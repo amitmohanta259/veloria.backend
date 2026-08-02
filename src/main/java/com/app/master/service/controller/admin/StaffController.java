@@ -32,8 +32,8 @@ public class StaffController extends AppController {
                                                 @RequestPart(value = "familyLineageFiles", required = false) List<MultipartFile> familyLineageFiles,
                                                 @RequestPart(value = "legalVerificationFiles", required = false) List<MultipartFile> legalVerificationFiles) throws VeloriaException {
 
-        return success(ResponseCode.CREATED, "Staff created successfully",
-                staffService.createStaff(payload, avatar, educationFiles, familyLineageFiles, legalVerificationFiles));
+        staffService.createStaff(payload, avatar, educationFiles, familyLineageFiles, legalVerificationFiles);
+        return success(ResponseCode.CREATED, "Staff created successfully");
     }
 
     @PutMapping(value = "/update/{staffUuid}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -44,8 +44,14 @@ public class StaffController extends AppController {
                                                 @RequestPart(value = "familyLineageFiles", required = false) List<MultipartFile> familyLineageFiles,
                                                 @RequestPart(value = "legalVerificationFiles", required = false) List<MultipartFile> legalVerificationFiles) throws VeloriaException {
 
-        return success(ResponseCode.UPDATED, "Staff updated successfully",
-                staffService.updateStaff(staffUuid, payload, avatar, educationFiles, familyLineageFiles, legalVerificationFiles));
+        staffService.updateStaff(staffUuid, payload, avatar, educationFiles, familyLineageFiles, legalVerificationFiles);
+        return success(ResponseCode.UPDATED, "Staff updated successfully");
+    }
+
+    @GetMapping("/{staffUuid}")
+    public ResponseEntity<Response> getStaffByUuid(@PathVariable UUID staffUuid) throws VeloriaException {
+
+        return data(ResponseCode.FETCHED, "Staff fetched successfully", staffService.getStaffByUuid(staffUuid));
     }
 
 }

@@ -12,6 +12,5 @@ public class StaffFamilyLineageItemRequest {
     private String fullName;
     private String relation;
     private String contactNumber;
-    /** Existing S3 URL when updating without re-uploading */
     private String documentUrl;
 }

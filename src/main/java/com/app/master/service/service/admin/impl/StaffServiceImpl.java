@@ -5,6 +5,7 @@ import com.app.master.service.core.entity.*;
 import com.app.master.service.core.enums.StaffResidencyType;
 import com.app.master.service.core.exception.VeloriaException;
 import com.app.master.service.core.response.ResponseCode;
+import com.app.master.service.core.response.admin.StaffDetailResponse;
 import com.app.master.service.core.service.AppService;
 import com.app.master.service.core.service.AwsService;
 import com.app.master.service.repository.admin.*;
@@ -19,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -47,8 +47,8 @@ public class StaffServiceImpl extends AppService implements StaffService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, UUID> createStaff(StaffUpsertRequest request, MultipartFile avatar, List<MultipartFile> educationFiles,
-                                         List<MultipartFile> familyLineageFiles, List<MultipartFile> legalVerificationFiles) throws VeloriaException {
+    public void createStaff(StaffUpsertRequest request, MultipartFile avatar, List<MultipartFile> educationFiles,
+                            List<MultipartFile> familyLineageFiles, List<MultipartFile> legalVerificationFiles) throws VeloriaException {
         validateResidency(request.getResidency());
 
         StaffEntity staff = StaffEntity.builder()
@@ -64,14 +64,12 @@ public class StaffServiceImpl extends AppService implements StaffService {
         staff = staffRepository.save(staff);
 
         replaceRelatedRecords(staff, request, educationFiles, familyLineageFiles, legalVerificationFiles, false);
-
-        return Map.of("uuid", staff.getUuid());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, UUID> updateStaff(UUID staffUuid, StaffUpsertRequest request, MultipartFile avatar, List<MultipartFile> educationFiles,
-                                         List<MultipartFile> familyLineageFiles, List<MultipartFile> legalVerificationFiles) throws VeloriaException {
+    public void updateStaff(UUID staffUuid, StaffUpsertRequest request, MultipartFile avatar, List<MultipartFile> educationFiles,
+                            List<MultipartFile> familyLineageFiles, List<MultipartFile> legalVerificationFiles) throws VeloriaException {
         validateResidency(request.getResidency());
 
         StaffEntity staff = staffRepository.findByUuid(staffUuid)
@@ -90,8 +88,121 @@ public class StaffServiceImpl extends AppService implements StaffService {
         deleteStaleS3Object(previousAvatarKey, staff.getAvatar());
 
         replaceRelatedRecords(staff, request, educationFiles, familyLineageFiles, legalVerificationFiles, true);
+    }
 
-        return Map.of("uuid", staff.getUuid());
+    @Override
+    @Transactional(readOnly = true)
+    public StaffDetailResponse getStaffByUuid(UUID staffUuid) throws VeloriaException {
+
+        StaffEntity staff = staffRepository.findByUuid(staffUuid)
+                .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid staff uuid"));
+        Long staffId = staff.getId();
+
+        List<StaffDetailResponse.EducationRow> educationRows = new ArrayList<>();
+        for (StaffEducationHistoryEntity e : educationHistoryRepository.findByStaffId(staffId)) {
+            String certKey = e.getCertificate();
+            String certPresigned = null;
+            if (!Strings.isNullOrEmpty(certKey)) {
+                try {
+                    certPresigned = awsService.getViewablePreSignedUrl(certKey);
+                } catch (Exception ignored) {
+                }
+            }
+            educationRows.add(StaffDetailResponse.EducationRow.builder()
+                    .level(e.getLevel())
+                    .institute(e.getInstitute())
+                    .city(e.getCity())
+                    .year(e.getYear())
+                    .percentage(e.getPercentage())
+                    .certificateObjectKey(certKey)
+                    .certificatePresignedUrl(certPresigned)
+                    .build());
+        }
+
+        List<StaffDetailResponse.FamilyRow> familyRows = new ArrayList<>();
+        for (StaffFamilyLineageEntity e : familyLineageRepository.findByStaffId(staffId)) {
+            String doc = e.getDocument();
+            String docPresigned = null;
+            if (!Strings.isNullOrEmpty(doc)) {
+                try {
+                    docPresigned = awsService.getViewablePreSignedUrl(doc);
+                } catch (Exception ignored) {
+                }
+            }
+            familyRows.add(StaffDetailResponse.FamilyRow.builder()
+                    .fullName(e.getFullName())
+                    .relation(e.getRelation())
+                    .contactNumber(e.getContactNumber())
+                    .documentObjectKey(doc)
+                    .documentPresignedUrl(docPresigned)
+                    .build());
+        }
+
+        List<StaffDetailResponse.InsuranceRow> insuranceRows = new ArrayList<>();
+        for (StaffInsuranceCoverageEntity e : insuranceCoverageRepository.findByStaffId(staffId)) {
+            insuranceRows.add(StaffDetailResponse.InsuranceRow.builder()
+                    .insuranceProvider(e.getInsuranceProvider())
+                    .policyId(e.getPolicyId())
+                    .build());
+        }
+
+        List<StaffDetailResponse.LegalRow> legalRows = new ArrayList<>();
+        for (StaffLegalVerificationEntity e : legalVerificationRepository.findByStaffId(staffId)) {
+            String doc = e.getDocument();
+            String docPresigned = null;
+            if (!Strings.isNullOrEmpty(doc)) {
+                try {
+                    docPresigned = awsService.getViewablePreSignedUrl(doc);
+                } catch (Exception ignored) {
+                }
+            }
+            legalRows.add(StaffDetailResponse.LegalRow.builder()
+                    .documentType(e.getDocumentType())
+                    .identificationNumber(e.getIdentificationNumber())
+                    .documentObjectKey(doc)
+                    .documentPresignedUrl(docPresigned)
+                    .build());
+        }
+
+        List<StaffDetailResponse.ResidencyRow> residencyRows = new ArrayList<>();
+        for (StaffResidencyEntity e : residencyRepository.findByStaffId(staffId)) {
+            residencyRows.add(StaffDetailResponse.ResidencyRow.builder()
+                    .houseNo(e.getHouseNo())
+                    .lane(e.getLane())
+                    .city(e.getCity())
+                    .state(e.getState())
+                    .pin(e.getPin())
+                    .type(e.getType())
+                    .build());
+        }
+
+        String avatarKey = staff.getAvatar();
+        String avatarPresigned = null;
+        if (!Strings.isNullOrEmpty(avatarKey)) {
+            try {
+                avatarPresigned = awsService.getViewablePreSignedUrl(avatarKey);
+            } catch (Exception ignored) {
+            }
+        }
+
+        return StaffDetailResponse.builder()
+                .uuid(staff.getUuid())
+                .avatarObjectKey(avatarKey)
+                .avatarPresignedUrl(avatarPresigned)
+                .department(staff.getDepartment())
+                .designation(staff.getDesignation())
+                .workEmail(staff.getWorkEmail())
+                .phone(staff.getPhone())
+                .joiningDate(staff.getJoiningDate())
+                .resignDate(staff.getResignDate())
+                .active(staff.getActive())
+                .archive(staff.getArchive())
+                .educationHistory(educationRows)
+                .familyLineage(familyRows)
+                .insuranceCoverage(insuranceRows)
+                .legalVerification(legalRows)
+                .residency(residencyRows)
+                .build();
     }
 
     private void replaceRelatedRecords(StaffEntity staff, StaffUpsertRequest request, List<MultipartFile> educationFiles,

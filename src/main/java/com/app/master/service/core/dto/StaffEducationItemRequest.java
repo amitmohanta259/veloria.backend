@@ -14,6 +14,5 @@ public class StaffEducationItemRequest {
     private String city;
     private String year;
     private String percentage;
-    /** Existing S3 URL when updating without re-uploading */
     private String certificateUrl;
 }
