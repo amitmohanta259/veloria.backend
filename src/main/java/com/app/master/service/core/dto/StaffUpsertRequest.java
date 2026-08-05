@@ -13,7 +13,6 @@ import java.util.List;
 @Builder
 public class StaffUpsertRequest {
 
-    /** Used when no avatar file is sent */
     private String avatarUrl;
 
     private StaffDepartment department;

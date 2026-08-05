@@ -19,7 +19,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -58,7 +60,9 @@ public class StaffServiceImpl extends AppService implements StaffService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, UUID> createStaff(StaffUpsertRequest request) throws VeloriaException {
+    public Map<String, UUID> createStaff(StaffUpsertRequest request, MultipartFile avatar,
+                                          List<MultipartFile> educationFiles, List<MultipartFile> familyLineageFiles,
+                                          List<MultipartFile> legalVerificationFiles) throws VeloriaException {
         validateResidency(request.getResidency());
 
         StaffEntity staff = StaffEntity.builder()
@@ -70,16 +74,18 @@ public class StaffServiceImpl extends AppService implements StaffService {
                 .resignDate(request.getResignDate())
                 .build();
 
-        applyAvatar(staff, request, true);
+        applyAvatar(staff, request, avatar, true);
         staff = staffRepository.save(staff);
-        replaceRelatedRecords(staff, request, false);
+        replaceRelatedRecords(staff, request, educationFiles, familyLineageFiles, legalVerificationFiles, false);
 
         return Map.of("uuid", staff.getUuid());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, UUID> updateStaff(UUID staffUuid, StaffUpsertRequest request) throws VeloriaException {
+    public Map<String, UUID> updateStaff(UUID staffUuid, StaffUpsertRequest request, MultipartFile avatar,
+                                          List<MultipartFile> educationFiles, List<MultipartFile> familyLineageFiles,
+                                          List<MultipartFile> legalVerificationFiles) throws VeloriaException {
         validateResidency(request.getResidency());
 
         StaffEntity staff = staffRepository.findByUuid(staffUuid)
@@ -93,17 +99,17 @@ public class StaffServiceImpl extends AppService implements StaffService {
         staff.setResignDate(request.getResignDate());
 
         String previousAvatarKey = staff.getAvatar();
-        applyAvatar(staff, request, false);
+        applyAvatar(staff, request, avatar, false);
         staff = staffRepository.save(staff);
         deleteStaleS3Object(previousAvatarKey, staff.getAvatar());
-        replaceRelatedRecords(staff, request, true);
+        replaceRelatedRecords(staff, request, educationFiles, familyLineageFiles, legalVerificationFiles, true);
 
         return Map.of("uuid", staff.getUuid());
     }
 
     @Override
     public Page<StaffListResponse> getStaffList(int page, int pageSize, String search,
-                                                StaffDepartment department, Boolean active) throws VeloriaException {
+                                                 StaffDepartment department, Boolean active) throws VeloriaException {
         String normalizedSearch = Strings.isNullOrEmpty(search) ? null : search.toLowerCase();
         Pageable pageable = PageRequest.of(page, pageSize);
         Page<StaffListResponse> staffPage = staffRepository.getStaffList(normalizedSearch, department, active, pageable);
@@ -148,18 +154,29 @@ public class StaffServiceImpl extends AppService implements StaffService {
         staffRepository.save(staff);
     }
 
-    // --- Private helpers ---
+    // ---- Private helpers ----
 
-    private void applyAvatar(StaffEntity staff, StaffUpsertRequest request, boolean isCreate) {
-        if (!Strings.isNullOrEmpty(request.getAvatarUrl())) {
+    private void applyAvatar(StaffEntity staff, StaffUpsertRequest request, MultipartFile avatar, boolean isCreate)
+            throws VeloriaException {
+        if (avatar != null && !avatar.isEmpty()) {
+            try {
+                String path = awsService.getStaffAvatarPath(staff.getUuid(), avatar.getOriginalFilename());
+                staff.setAvatar(awsService.uploadDocumentMultipart(avatar, path));
+            } catch (IOException e) {
+                throw new VeloriaException(ResponseCode.AWS_ERROR, "Avatar upload failed: " + e.getMessage());
+            }
+        } else if (!Strings.isNullOrEmpty(request.getAvatarUrl())) {
             staff.setAvatar(request.getAvatarUrl());
         } else if (isCreate) {
             staff.setAvatar(null);
         }
     }
 
-    private void replaceRelatedRecords(StaffEntity staff, StaffUpsertRequest request, boolean isUpdate) throws VeloriaException {
+    private void replaceRelatedRecords(StaffEntity staff, StaffUpsertRequest request,
+                                        List<MultipartFile> educationFiles, List<MultipartFile> familyLineageFiles,
+                                        List<MultipartFile> legalVerificationFiles, boolean isUpdate) throws VeloriaException {
         Long staffId = staff.getId();
+        UUID staffUuid = staff.getUuid();
 
         Set<String> previousDocumentKeys = new HashSet<>();
         if (isUpdate) {
@@ -178,10 +195,10 @@ public class StaffServiceImpl extends AppService implements StaffService {
         residencyRepository.deleteByStaffId(staffId);
 
         Set<String> retainedDocumentKeys = new HashSet<>();
-        saveEducation(staffId, orEmpty(request.getEducationHistory()), retainedDocumentKeys);
-        saveFamilyLineage(staffId, orEmpty(request.getFamilyLineage()), retainedDocumentKeys);
+        saveEducation(staffId, staffUuid, orEmpty(request.getEducationHistory()), educationFiles, retainedDocumentKeys);
+        saveFamilyLineage(staffId, staffUuid, orEmpty(request.getFamilyLineage()), familyLineageFiles, retainedDocumentKeys);
         saveInsurance(staffId, orEmpty(request.getInsuranceCoverage()));
-        saveLegal(staffId, orEmpty(request.getLegalVerification()), retainedDocumentKeys);
+        saveLegal(staffId, staffUuid, orEmpty(request.getLegalVerification()), legalVerificationFiles, retainedDocumentKeys);
         saveResidency(staffId, request.getResidency());
 
         if (isUpdate) {
@@ -208,8 +225,8 @@ public class StaffServiceImpl extends AppService implements StaffService {
     }
 
     private List<String> collectDocumentKeys(StaffEntity staff, List<StaffEducationHistoryEntity> education,
-                                             List<StaffFamilyLineageEntity> family,
-                                             List<StaffLegalVerificationEntity> legal) {
+                                              List<StaffFamilyLineageEntity> family,
+                                              List<StaffLegalVerificationEntity> legal) {
         List<String> keys = new ArrayList<>();
         if (!Strings.isNullOrEmpty(staff.getAvatar())) keys.add(staff.getAvatar());
         education.stream().map(StaffEducationHistoryEntity::getCertificate)
@@ -234,15 +251,17 @@ public class StaffServiceImpl extends AppService implements StaffService {
     }
 
     private StaffDetailResponse buildDetailResponse(StaffEntity staff,
-                                                    List<StaffEducationHistoryEntity> education,
-                                                    List<StaffFamilyLineageEntity> family,
-                                                    List<StaffInsuranceCoverageEntity> insurance,
-                                                    List<StaffLegalVerificationEntity> legal,
-                                                    List<StaffResidencyEntity> residency,
-                                                    Map<String, String> presignedUrls) {
+                                                     List<StaffEducationHistoryEntity> education,
+                                                     List<StaffFamilyLineageEntity> family,
+                                                     List<StaffInsuranceCoverageEntity> insurance,
+                                                     List<StaffLegalVerificationEntity> legal,
+                                                     List<StaffResidencyEntity> residency,
+                                                     Map<String, String> presignedUrls) {
+        String avatarKey = staff.getAvatar();
         return StaffDetailResponse.builder()
                 .uuid(staff.getUuid())
-                .avatarUrl(presign(presignedUrls, staff.getAvatar()))
+                .avatarObjectKey(avatarKey)
+                .avatarPresignedUrl(presign(presignedUrls, avatarKey))
                 .department(staff.getDepartment())
                 .designation(staff.getDesignation())
                 .workEmail(staff.getWorkEmail())
@@ -250,32 +269,41 @@ public class StaffServiceImpl extends AppService implements StaffService {
                 .joiningDate(staff.getJoiningDate())
                 .resignDate(staff.getResignDate())
                 .active(staff.getActive())
+                .archive(staff.getArchive())
                 .educationHistory(education.stream()
-                        .map(e -> StaffDetailResponse.EducationHistoryItem.builder()
+                        .map(e -> StaffDetailResponse.EducationRow.builder()
                                 .level(e.getLevel()).institute(e.getInstitute()).city(e.getCity())
                                 .year(e.getYear()).percentage(e.getPercentage())
-                                .certificateUrl(presign(presignedUrls, e.getCertificate())).build())
+                                .certificateObjectKey(e.getCertificate())
+                                .certificatePresignedUrl(presign(presignedUrls, e.getCertificate()))
+                                .build())
                         .collect(Collectors.toList()))
                 .familyLineage(family.stream()
-                        .map(f -> StaffDetailResponse.FamilyLineageItem.builder()
+                        .map(f -> StaffDetailResponse.FamilyRow.builder()
                                 .fullName(f.getFullName()).relation(f.getRelation())
                                 .contactNumber(f.getContactNumber())
-                                .documentUrl(presign(presignedUrls, f.getDocument())).build())
+                                .documentObjectKey(f.getDocument())
+                                .documentPresignedUrl(presign(presignedUrls, f.getDocument()))
+                                .build())
                         .collect(Collectors.toList()))
                 .insuranceCoverage(insurance.stream()
-                        .map(i -> StaffDetailResponse.InsuranceCoverageItem.builder()
-                                .insuranceProvider(i.getInsuranceProvider()).policyId(i.getPolicyId()).build())
+                        .map(i -> StaffDetailResponse.InsuranceRow.builder()
+                                .insuranceProvider(i.getInsuranceProvider()).policyId(i.getPolicyId())
+                                .build())
                         .collect(Collectors.toList()))
                 .legalVerification(legal.stream()
-                        .map(l -> StaffDetailResponse.LegalVerificationItem.builder()
+                        .map(l -> StaffDetailResponse.LegalRow.builder()
                                 .documentType(l.getDocumentType())
                                 .identificationNumber(l.getIdentificationNumber())
-                                .documentUrl(presign(presignedUrls, l.getDocument())).build())
+                                .documentObjectKey(l.getDocument())
+                                .documentPresignedUrl(presign(presignedUrls, l.getDocument()))
+                                .build())
                         .collect(Collectors.toList()))
                 .residency(residency.stream()
-                        .map(r -> StaffDetailResponse.ResidencyItem.builder()
+                        .map(r -> StaffDetailResponse.ResidencyRow.builder()
                                 .houseNo(r.getHouseNo()).lane(r.getLane()).city(r.getCity())
-                                .state(r.getState()).pin(r.getPin()).type(r.getType()).build())
+                                .state(r.getState()).pin(r.getPin()).type(r.getType())
+                                .build())
                         .collect(Collectors.toList()))
                 .build();
     }
@@ -284,54 +312,61 @@ public class StaffServiceImpl extends AppService implements StaffService {
         return key != null ? presignedUrls.get(key) : null;
     }
 
-    private void saveEducation(Long staffId, List<StaffEducationItemRequest> items, Set<String> retainedKeys) {
+    private void saveEducation(Long staffId, UUID staffUuid, List<StaffEducationItemRequest> items,
+                                List<MultipartFile> files, Set<String> retainedDocumentKeys) throws VeloriaException {
         if (items.isEmpty()) return;
-        educationHistoryRepository.saveAll(items.stream()
-                .map(item -> {
-                    addKeyIfPresent(retainedKeys, item.getCertificateUrl());
-                    return StaffEducationHistoryEntity.builder()
-                            .staffId(staffId).level(item.getLevel()).institute(item.getInstitute())
-                            .city(item.getCity()).year(item.getYear()).percentage(item.getPercentage())
-                            .certificate(Strings.isNullOrEmpty(item.getCertificateUrl()) ? null : item.getCertificateUrl())
-                            .build();
-                })
-                .collect(Collectors.toList()));
+        List<StaffEducationHistoryEntity> entities = new ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            StaffEducationItemRequest item = items.get(i);
+            String certificate = resolveUploadedOrExisting(
+                    item.getCertificateUrl(), fileAt(files, i), staffUuid, "education");
+            addKeyIfPresent(retainedDocumentKeys, certificate);
+            entities.add(StaffEducationHistoryEntity.builder()
+                    .staffId(staffId).level(item.getLevel()).institute(item.getInstitute())
+                    .city(item.getCity()).year(item.getYear()).percentage(item.getPercentage())
+                    .certificate(certificate).build());
+        }
+        educationHistoryRepository.saveAll(entities);
     }
 
-    private void saveFamilyLineage(Long staffId, List<StaffFamilyLineageItemRequest> items, Set<String> retainedKeys) {
+    private void saveFamilyLineage(Long staffId, UUID staffUuid, List<StaffFamilyLineageItemRequest> items,
+                                    List<MultipartFile> files, Set<String> retainedDocumentKeys) throws VeloriaException {
         if (items.isEmpty()) return;
-        familyLineageRepository.saveAll(items.stream()
-                .map(item -> {
-                    addKeyIfPresent(retainedKeys, item.getDocumentUrl());
-                    return StaffFamilyLineageEntity.builder()
-                            .staffId(staffId).fullName(item.getFullName()).relation(item.getRelation())
-                            .contactNumber(item.getContactNumber())
-                            .document(Strings.isNullOrEmpty(item.getDocumentUrl()) ? null : item.getDocumentUrl())
-                            .build();
-                })
-                .collect(Collectors.toList()));
+        List<StaffFamilyLineageEntity> entities = new ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            StaffFamilyLineageItemRequest item = items.get(i);
+            String document = resolveUploadedOrExisting(
+                    item.getDocumentUrl(), fileAt(files, i), staffUuid, "family");
+            addKeyIfPresent(retainedDocumentKeys, document);
+            entities.add(StaffFamilyLineageEntity.builder()
+                    .staffId(staffId).fullName(item.getFullName()).relation(item.getRelation())
+                    .contactNumber(item.getContactNumber()).document(document).build());
+        }
+        familyLineageRepository.saveAll(entities);
     }
 
     private void saveInsurance(Long staffId, List<StaffInsuranceItemRequest> items) {
         if (items.isEmpty()) return;
         insuranceCoverageRepository.saveAll(items.stream()
                 .map(i -> StaffInsuranceCoverageEntity.builder()
-                        .staffId(staffId).insuranceProvider(i.getInsuranceProvider()).policyId(i.getPolicyId()).build())
+                        .staffId(staffId).insuranceProvider(i.getInsuranceProvider()).policyId(i.getPolicyId())
+                        .build())
                 .collect(Collectors.toList()));
     }
 
-    private void saveLegal(Long staffId, List<StaffLegalVerificationItemRequest> items, Set<String> retainedKeys) {
+    private void saveLegal(Long staffId, UUID staffUuid, List<StaffLegalVerificationItemRequest> items,
+                            List<MultipartFile> files, Set<String> retainedDocumentKeys) throws VeloriaException {
         if (items.isEmpty()) return;
-        legalVerificationRepository.saveAll(items.stream()
-                .map(item -> {
-                    addKeyIfPresent(retainedKeys, item.getDocumentUrl());
-                    return StaffLegalVerificationEntity.builder()
-                            .staffId(staffId).documentType(item.getDocumentType())
-                            .identificationNumber(item.getIdentificationNumber())
-                            .document(Strings.isNullOrEmpty(item.getDocumentUrl()) ? null : item.getDocumentUrl())
-                            .build();
-                })
-                .collect(Collectors.toList()));
+        List<StaffLegalVerificationEntity> entities = new ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            StaffLegalVerificationItemRequest item = items.get(i);
+            String document = resolveUploadedOrExisting(item.getDocumentUrl(), fileAt(files, i), staffUuid, "legal");
+            addKeyIfPresent(retainedDocumentKeys, document);
+            entities.add(StaffLegalVerificationEntity.builder()
+                    .staffId(staffId).documentType(item.getDocumentType())
+                    .identificationNumber(item.getIdentificationNumber()).document(document).build());
+        }
+        legalVerificationRepository.saveAll(entities);
     }
 
     private void saveResidency(Long staffId, List<StaffResidencyItemRequest> items) {
@@ -341,6 +376,30 @@ public class StaffServiceImpl extends AppService implements StaffService {
                         .city(item.getCity()).state(item.getState()).pin(item.getPin())
                         .type(item.getResidencyType().name()).build())
                 .collect(Collectors.toList()));
+    }
+
+    private String resolveUploadedOrExisting(String existingKey, MultipartFile file,
+                                              UUID staffUuid, String segment) throws VeloriaException {
+        if (file != null && !file.isEmpty()) {
+            try {
+                String path = switch (segment) {
+                    case "education" -> awsService.getStaffEducationDocumentPath(staffUuid, file.getOriginalFilename());
+                    case "family"    -> awsService.getStaffFamilyDocumentPath(staffUuid, file.getOriginalFilename());
+                    case "legal"     -> awsService.getStaffLegalDocumentPath(staffUuid, file.getOriginalFilename());
+                    default -> throw new VeloriaException(ResponseCode.BAD_REQUEST, "Unknown segment: " + segment);
+                };
+                return awsService.uploadDocumentMultipart(file, path);
+            } catch (IOException e) {
+                throw new VeloriaException(ResponseCode.AWS_ERROR, "Document upload failed: " + e.getMessage());
+            }
+        }
+        return Strings.isNullOrEmpty(existingKey) ? null : existingKey;
+    }
+
+    private MultipartFile fileAt(List<MultipartFile> files, int index) {
+        if (files == null || index >= files.size()) return null;
+        MultipartFile f = files.get(index);
+        return (f == null || f.isEmpty()) ? null : f;
     }
 
     private void validateResidency(List<StaffResidencyItemRequest> residency) throws VeloriaException {
