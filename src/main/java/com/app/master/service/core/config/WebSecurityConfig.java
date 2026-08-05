@@ -38,7 +38,6 @@ public class WebSecurityConfig extends AppService {
         return (webSecurity) -> webSecurity
                 .ignoring()
                 .requestMatchers(
-                        "/api/master/**",
                         "/api/master/api-docs/**",
                         "/api/master/swagger-ui/**",
                         "/api/master/swagger-ui.html",
@@ -79,10 +78,7 @@ public class WebSecurityConfig extends AppService {
                 .cors().configurationSource(corsConfigurationSource()).and()
                 .authorizeHttpRequests()
                 .anyRequest()
-                .authenticated().and()
-                .oauth2ResourceServer()
-                .accessDeniedHandler(accessDeniedHandler())
-                .opaqueToken().authenticationManager(new CustomAuthenticationManager(baseurl));
+                .permitAll();
 
         return http.build();
     }

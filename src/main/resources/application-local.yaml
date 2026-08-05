@@ -34,11 +34,11 @@ management:
         include: '*'
 
 keycloak:
-  realm: master
+  realm: veloria
   tenant-realm: tenant-group
-  base-url: https://dev.auth.komdihealth.com
-  auth-url: https://dev.auth.komdihealth.com
-  client-id: service-client
+  base-url: https://dev.auth.veloriafashion.com
+  auth-url: https://dev.auth.veloriafashion.com
+  client-id: veloria-backend
   client-secret: ${KEYCLOAK_CLIENT_SECRET:dummy-client-secret}
 
 logging:

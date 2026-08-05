@@ -34,9 +34,9 @@ public class ValidateToken extends AppService {
     // i.e. after Keycloak rotates its signing keys. See RemoteJWKSet/DefaultJWKSetCache.
     private final JWKSource<SecurityContext> jwkSource;
 
-    public ValidateToken(String baseurl) {
+    public ValidateToken(String baseurl, String realm) {
         this.baseUrl = baseurl;
-        this.jwkSource = buildJwkSource(baseurl, Constant.REALM);
+        this.jwkSource = buildJwkSource(baseurl, realm);
     }
 
     private static JWKSource<SecurityContext> buildJwkSource(String baseUrl, String realm) {

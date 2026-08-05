@@ -16,8 +16,8 @@ public class CustomAuthenticationManager implements AuthenticationManager {
     // re-fetching Keycloak's signing keys on every single call.
     private final ValidateToken validateToken;
 
-    public CustomAuthenticationManager(String baseurl) {
-        this.validateToken = new ValidateToken(baseurl);
+    public CustomAuthenticationManager(String baseurl, String realm) {
+        this.validateToken = new ValidateToken(baseurl, realm);
     }
 
     @Override
