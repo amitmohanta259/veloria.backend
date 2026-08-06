@@ -1,0 +1,103 @@
+databaseChangeLog:
+  - changeSet:
+      id: seed_sales_order_data
+      author: admin
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO sales_order (
+                uuid, order_code, product_uuid, product_name, sku_id,
+                quantity, unit_price, total_value, currency,
+                customer_name, customer_email,
+                status, return_window_days, order_placed_at,
+                active, archive, created, modified
+              ) VALUES
+              -- January 2026 (DONE — past 30-day return window)
+              (gen_random_uuid(), 'SAL-2026-0001', '11aabbcc-1122-3344-5566-778899aabbcc',
+               'Midnight Silk Maxi', 'VEL-S24-DRS-001', 1, 890000, 890000, 'INR',
+               'Priya Sharma', 'priya.sharma@email.com',
+               'DONE', 30, '2026-01-15 10:30:00', true, false, NOW(), NOW()),
+
+              (gen_random_uuid(), 'SAL-2026-0002', '44ddeeff-4455-6677-8899-aabbccddeeff',
+               'Heritage Kanjivaram Saree', 'VEL-FST-SAR-004', 2, 1500000, 3000000, 'INR',
+               'Ananya Mehta', 'ananya.m@fashionmail.com',
+               'DONE', 30, '2026-01-28 14:15:00', true, false, NOW(), NOW()),
+
+              -- February 2026 (DONE)
+              (gen_random_uuid(), 'SAL-2026-0003', '66ffaabb-6677-8899-aabb-ccddeeffaabb',
+               'Crimson Bridal Lehenga', 'VEL-BRD-LEH-006', 1, 4500000, 4500000, 'INR',
+               'Divya Krishnan', 'divya.k@luxemail.com',
+               'DONE', 30, '2026-02-10 09:00:00', true, false, NOW(), NOW()),
+
+              (gen_random_uuid(), 'SAL-2026-0004', '22bbccdd-2233-4455-6677-8899aabbccdd',
+               'Azure Breezy Blouse', 'VEL-S24-BLS-002', 3, 350000, 1050000, 'INR',
+               'Kavya Nair', 'kavya.nair@boutique.in',
+               'DONE', 30, '2026-02-22 16:45:00', true, false, NOW(), NOW()),
+
+              -- March 2026 (DONE)
+              (gen_random_uuid(), 'SAL-2026-0005', '55eeffaa-5566-7788-99aa-bbccddeeffaa',
+               'Emerald Kurta Set', 'VEL-FST-KRT-005', 2, 420000, 840000, 'INR',
+               'Rahul Gupta', 'r.gupta@wardrobeplus.com',
+               'DONE', 30, '2026-03-05 11:20:00', true, false, NOW(), NOW()),
+
+              (gen_random_uuid(), 'SAL-2026-0006', '77aabbcc-7788-99aa-bbcc-ddeeffaabbcc',
+               'Royal Banarasi Bridal Saree', 'VEL-BRD-SAR-007', 1, 2800000, 2800000, 'INR',
+               'Neha Patel', 'neha.patel@bridal.co',
+               'DONE', 30, '2026-03-18 13:30:00', true, false, NOW(), NOW()),
+
+              -- April 2026 (DONE)
+              (gen_random_uuid(), 'SAL-2026-0007', 'aaddeeaa-aabb-ccdd-eeff-aabbccddeeff',
+               'Classic Wool Trench', 'VEL-WIN-TRN-010', 1, 1200000, 1200000, 'INR',
+               'Sofia Williams', 'sofia.w@elitestyle.com',
+               'DONE', 30, '2026-04-03 10:00:00', true, false, NOW(), NOW()),
+
+              (gen_random_uuid(), 'SAL-2026-0008', '88bbccdd-8899-aabb-ccdd-eeffaabbccdd',
+               'Milano Leather Belt', 'VEL-ACC-BLT-008', 2, 280000, 560000, 'INR',
+               'James Anderson', 'j.anderson@luxury.uk',
+               'DONE', 30, '2026-04-20 15:00:00', true, false, NOW(), NOW()),
+
+              -- May 2026 (DONE)
+              (gen_random_uuid(), 'SAL-2026-0009', '99ccddee-99aa-bbcc-ddee-ffaabbccddee',
+               'Cashmere Cloud Scarf', 'VEL-ACC-SCF-009', 4, 320000, 1280000, 'INR',
+               'Emma Chen', 'emma.c@stylehaus.com',
+               'DONE', 30, '2026-05-08 09:30:00', true, false, NOW(), NOW()),
+
+              (gen_random_uuid(), 'SAL-2026-0010', '33ccddee-3344-5566-7788-99aabbccddee',
+               'Ivory Palazzo Set', 'VEL-S24-PAL-003', 1, 550000, 550000, 'INR',
+               'Isabella Costa', 'i.costa@fashionista.it',
+               'DONE', 30, '2026-05-25 12:45:00', true, false, NOW(), NOW()),
+
+              -- June 2026 (DONE)
+              (gen_random_uuid(), 'SAL-2026-0011', '11aabbcc-1122-3344-5566-778899aabbcc',
+               'Midnight Silk Maxi', 'VEL-S24-DRS-001', 2, 890000, 1780000, 'INR',
+               'Charlotte Moore', 'charlotte.m@couture.fr',
+               'DONE', 30, '2026-06-12 11:00:00', true, false, NOW(), NOW()),
+
+              (gen_random_uuid(), 'SAL-2026-0012', '55eeffaa-5566-7788-99aa-bbccddeeffaa',
+               'Emerald Kurta Set', 'VEL-FST-KRT-005', 3, 420000, 1260000, 'INR',
+               'Arjun Singh', 'arjun.s@ethnic.in',
+               'DONE', 30, '2026-06-28 14:00:00', true, false, NOW(), NOW()),
+
+              -- July 2026 (IN_TRANSIT — within 30-day return window)
+              (gen_random_uuid(), 'SAL-2026-0013', '44ddeeff-4455-6677-8899-aabbccddeeff',
+               'Heritage Kanjivaram Saree', 'VEL-FST-SAR-004', 1, 1500000, 1500000, 'INR',
+               'Meera Iyer', 'meera.iyer@luxewear.in',
+               'IN_TRANSIT', 30, '2026-07-20 10:15:00', true, false, NOW(), NOW()),
+
+              (gen_random_uuid(), 'SAL-2026-0014', '66ffaabb-6677-8899-aabb-ccddeeffaabb',
+               'Crimson Bridal Lehenga', 'VEL-BRD-LEH-006', 1, 4500000, 4500000, 'INR',
+               'Pooja Reddy', 'pooja.r@bridalstudio.com',
+               'IN_TRANSIT', 30, '2026-07-31 16:30:00', true, false, NOW(), NOW()),
+
+              -- August 2026 (ORDER_PLACED — very recent)
+              (gen_random_uuid(), 'SAL-2026-0015', 'aaddeeaa-aabb-ccdd-eeff-aabbccddeeff',
+               'Classic Wool Trench', 'VEL-WIN-TRN-010', 2, 1200000, 2400000, 'INR',
+               'Natasha Roy', 'natasha.r@wardrobe.in',
+               'ORDER_PLACED', 30, '2026-08-02 09:00:00', true, false, NOW(), NOW()),
+
+              (gen_random_uuid(), 'SAL-2026-0016', '22bbccdd-2233-4455-6677-8899aabbccdd',
+               'Azure Breezy Blouse', 'VEL-S24-BLS-002', 1, 350000, 350000, 'INR',
+               'Zara Khan', 'zara.k@fashionclub.com',
+               'ORDER_PLACED', 30, '2026-08-05 14:20:00', true, false, NOW(), NOW())
+
+              ON CONFLICT (order_code) DO NOTHING;

@@ -1,0 +1,136 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_customer_order_table
+      author: admin
+      changes:
+        - createTable:
+            tableName: customer_order
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints: { primaryKey: true, nullable: false }
+              - column:
+                  name: uuid
+                  type: uuid
+                  constraints: { unique: true, nullable: false }
+              - column:
+                  name: order_code
+                  type: varchar(50)
+                  constraints: { unique: true, nullable: false }
+              - column:
+                  name: customer_id
+                  type: varchar(100)
+              - column:
+                  name: customer_name
+                  type: varchar(255)
+              - column:
+                  name: customer_email
+                  type: varchar(255)
+              - column:
+                  name: delivery_location
+                  type: varchar(255)
+              - column:
+                  name: total_value
+                  type: bigint
+              - column:
+                  name: currency
+                  type: varchar(10)
+                  defaultValue: INR
+              - column:
+                  name: status
+                  type: varchar(50)
+                  defaultValue: ORDER_PLACED
+              - column:
+                  name: order_placed_at
+                  type: timestamp
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+              - column:
+                  name: archive
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: created
+                  type: timestamp
+              - column:
+                  name: modified
+                  type: timestamp
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: modified_by
+                  type: varchar(255)
+
+  - changeSet:
+      id: create_customer_order_item_table
+      author: admin
+      changes:
+        - createTable:
+            tableName: customer_order_item
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints: { primaryKey: true, nullable: false }
+              - column:
+                  name: uuid
+                  type: uuid
+                  constraints: { unique: true, nullable: false }
+              - column:
+                  name: customer_order_id
+                  type: bigint
+                  constraints: { nullable: false }
+              - column:
+                  name: product_uuid
+                  type: uuid
+              - column:
+                  name: product_name
+                  type: varchar(255)
+              - column:
+                  name: product_image_url
+                  type: varchar(1000)
+              - column:
+                  name: price
+                  type: bigint
+              - column:
+                  name: currency
+                  type: varchar(10)
+                  defaultValue: INR
+              - column:
+                  name: dimensions
+                  type: varchar(255)
+              - column:
+                  name: comment
+                  type: text
+              - column:
+                  name: rating
+                  type: integer
+              - column:
+                  name: reason_for_return
+                  type: varchar(500)
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+              - column:
+                  name: archive
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: created
+                  type: timestamp
+              - column:
+                  name: modified
+                  type: timestamp
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: modified_by
+                  type: varchar(255)

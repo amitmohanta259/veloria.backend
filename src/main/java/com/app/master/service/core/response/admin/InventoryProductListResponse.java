@@ -1,6 +1,7 @@
 package com.app.master.service.core.response.admin;
 
 import com.app.master.service.core.enums.InventoryCurrency;
+import com.app.master.service.core.enums.InventoryGender;
 import com.app.master.service.core.enums.InventoryVisibility;
 import lombok.Getter;
 import lombok.Setter;
@@ -20,11 +21,14 @@ public class InventoryProductListResponse {
     private InventoryCurrency priceCurrency;
     private Long initialStock;
     private InventoryVisibility visibility;
+    private InventoryGender gender;
     private Boolean activeStatus;
+    private String dimensions;
     private List<String> images;
 
-    public InventoryProductListResponse(UUID uuid, String name, String description, String skuId, Long price, InventoryCurrency priceCurrency,
-                                        Long initialStock, InventoryVisibility visibility, Boolean activeStatus) {
+    public InventoryProductListResponse(UUID uuid, String name, String description, String skuId, Long price,
+                                        InventoryCurrency priceCurrency, Long initialStock, InventoryVisibility visibility,
+                                        InventoryGender gender, Boolean activeStatus, String dimensions) {
         this.uuid = uuid;
         this.name = name;
         this.description = description;
@@ -33,7 +37,9 @@ public class InventoryProductListResponse {
         this.priceCurrency = priceCurrency;
         this.initialStock = initialStock;
         this.visibility = visibility;
+        this.gender = gender;
         this.activeStatus = activeStatus;
+        this.dimensions = dimensions;
     }
 
 }

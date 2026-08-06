@@ -1,0 +1,120 @@
+databaseChangeLog:
+  - changeSet:
+      id: seed_supplier_data_sql
+      author: admin
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO supplier (
+                uuid, supplier_code, name, registration_name, gstn, category, status,
+                country, city, postal_address, website,
+                contact_name, contact_email, contact_phone,
+                payment_terms, settlement_currency, bank_name, swift_code, account_number,
+                product_tags, lead_time, moq,
+                active, archive, created, modified
+              ) VALUES
+              (
+                'a1b2c3d4-0001-0001-0001-000000000001', 'SUP-0001', 'Maison de Textile',
+                'Maison de Textile S.A.S.', '27AAACM1234F1Z1', 'Textiles', 'ACTIVE',
+                'France', 'Paris', '12 Rue du Faubourg Saint-Honoré, 75008 Paris',
+                'www.maisontextile.fr', 'Élodie Fontaine', 'e.fontaine@maisontextile.fr',
+                '+33 1 42 68 00 00', 'Net 30 Days', 'EUR', 'BNP Paribas', 'BNPAFRPPXXX',
+                'FR76 3000 4028 3798 7654 3210 943', 'Silk, Velvet, Organza, Linen',
+                '4-6 Weeks', '50 Metres', true, false, NOW(), NOW()
+              )
+              ON CONFLICT (uuid) DO NOTHING;
+
+              INSERT INTO supplier (
+                uuid, supplier_code, name, registration_name, gstn, category, status,
+                country, city, postal_address, website,
+                contact_name, contact_email, contact_phone,
+                payment_terms, settlement_currency, bank_name, swift_code, account_number,
+                product_tags, lead_time, moq,
+                active, archive, created, modified
+              ) VALUES
+              (
+                'a1b2c3d4-0002-0002-0002-000000000002', 'SUP-0002', 'Florence Hide Co.',
+                'Florence Hide Company S.r.l.', '09BCCDM5678G2Z2', 'Leather', 'ACTIVE',
+                'Italy', 'Florence', 'Via de'' Tornabuoni 15, 50123 Florence',
+                'www.florencehide.it', 'Marco Russo', 'm.russo@florencehide.it',
+                '+39 055 123 4567', 'Net 60 Days', 'EUR', 'UniCredit S.p.A.', 'UNCRITMMXXX',
+                'IT60 X054 2811 1010 0000 0123 456', 'Full-grain Leather, Suede, Nappa',
+                '6-8 Weeks', '100 Units', true, false, NOW(), NOW()
+              )
+              ON CONFLICT (uuid) DO NOTHING;
+
+              INSERT INTO supplier (
+                uuid, supplier_code, name, registration_name, gstn, category, status,
+                country, city, postal_address, website,
+                contact_name, contact_email, contact_phone,
+                payment_terms, settlement_currency, bank_name, swift_code, account_number,
+                product_tags, lead_time, moq,
+                active, archive, created, modified
+              ) VALUES
+              (
+                'a1b2c3d4-0003-0003-0003-000000000003', 'SUP-0003', 'Kyoto Silk Artisans',
+                'Kyoto Silk Artisans K.K.', '19EEFFM9012H3Z3', 'Textiles', 'PENDING',
+                'Japan', 'Kyoto', '12 Gion-machi Minamigawa, Higashiyama-ku, Kyoto 605-0074',
+                'www.kyotosilk.jp', 'Yuki Tanaka', 'y.tanaka@kyotosilk.jp',
+                '+81 75 561 0000', 'Net 30 Days', 'JPY', 'Sumitomo Mitsui Banking', 'SMBCJPJTXXX',
+                '1234567890', 'Silk, Kimono Fabric, Habutae',
+                '8-12 Weeks', '25 Metres', true, false, NOW(), NOW()
+              )
+              ON CONFLICT (uuid) DO NOTHING;
+
+              INSERT INTO supplier (
+                uuid, supplier_code, name, registration_name, gstn, category, status,
+                country, city, postal_address, website,
+                contact_name, contact_email, contact_phone,
+                payment_terms, settlement_currency, bank_name, swift_code, account_number,
+                product_tags, lead_time, moq,
+                active, archive, created, modified
+              ) VALUES
+              (
+                'a1b2c3d4-0004-0004-0004-000000000004', 'SUP-0004', 'Nordic Forge',
+                'Nordic Forge AS', '05GGHHM3456I4Z4', 'Hardware', 'ACTIVE',
+                'Norway', 'Oslo', 'Aker Brygge 15, 0150 Oslo',
+                'www.nordicforge.no', 'Lars Eriksen', 'l.eriksen@nordicforge.no',
+                '+47 22 00 00 00', 'Net 30 Days', 'EUR', 'DNB Bank ASA', 'DNBANOKKXXX',
+                '1234 56 78901', 'Brass Hardware, Zippers, Buckles',
+                '3-4 Weeks', '500 Units', true, false, NOW(), NOW()
+              )
+              ON CONFLICT (uuid) DO NOTHING;
+
+              INSERT INTO supplier (
+                uuid, supplier_code, name, registration_name, gstn, category, status,
+                country, city, postal_address, website,
+                contact_name, contact_email, contact_phone,
+                payment_terms, settlement_currency, bank_name, swift_code, account_number,
+                product_tags, lead_time, moq,
+                active, archive, created, modified
+              ) VALUES
+              (
+                'a1b2c3d4-0005-0005-0005-000000000005', 'SUP-0005', 'London Trims',
+                'London Trims Ltd.', '07IIJJM7890J5Z5', 'Accessories', 'ACTIVE',
+                'United Kingdom', 'London', '88 Canary Wharf Plaza, London E14 5AA',
+                'www.londontrims.co.uk', 'Alistair Vance', 'a.vance@londontrims.co.uk',
+                '+44 7700 900 128', 'Net 30 Days', 'GBP', 'Barclays Bank PLC', 'BARCGB22XXX',
+                'GB29 NWBK 6016 1331 9268 19', 'Ribbons, Buttons, Lace, Trims',
+                '2-3 Weeks', '200 Units', true, false, NOW(), NOW()
+              )
+              ON CONFLICT (uuid) DO NOTHING;
+
+              INSERT INTO supplier (
+                uuid, supplier_code, name, registration_name, gstn, category, status,
+                country, city, postal_address, website,
+                contact_name, contact_email, contact_phone,
+                payment_terms, settlement_currency, bank_name, swift_code, account_number,
+                product_tags, lead_time, moq,
+                active, archive, created, modified
+              ) VALUES
+              (
+                'a1b2c3d4-0006-0006-0006-000000000006', 'SUP-0006', 'Mumbai Weave Masters',
+                'Mumbai Weave Masters Pvt. Ltd.', '27AADCM4567H1ZK', 'Textiles', 'ACTIVE',
+                'India', 'Mumbai', '45 Linking Road, Bandra West, Mumbai 400050',
+                'www.mumbaiweave.in', 'Rajesh Mehta', 'r.mehta@mumbaiweave.in',
+                '+91 98765 43210', 'Net 30 Days', 'INR', 'HDFC Bank', 'HDFCINBBXXX',
+                '50100123456789', 'Chiffon, Georgette, Banarasi Silk',
+                '3-5 Weeks', '100 Metres', true, false, NOW(), NOW()
+              )
+              ON CONFLICT (uuid) DO NOTHING;

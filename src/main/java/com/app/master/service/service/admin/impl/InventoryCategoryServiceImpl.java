@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -66,6 +67,11 @@ public class InventoryCategoryServiceImpl extends AppService implements Inventor
         search = Strings.isNullOrEmpty(search) ? null : search.toLowerCase();
 
         return repository.allInventoryCategory(search, pageable);
+    }
+
+    @Override
+    public List<InventoryCategory> listAllInventoryCategory() throws VeloriaException {
+        return repository.listAllInventoryCategory();
     }
 
     @Override

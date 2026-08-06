@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,5 +32,18 @@ public interface InventoryCategoryRepository extends JpaRepository<InventoryCate
             AND i.archive = false
             """)
     Page<InventoryCategory> allInventoryCategory(@Param("search") String search, Pageable pageable);
+
+    @Query(value = """
+            SELECT new com.app.master.service.core.dto.InventoryCategory(
+            i.uuid,
+            i.name,
+            i.description
+            )
+            FROM InventoryCategoryEntity i
+            WHERE i.active = true
+            AND i.archive = false
+            ORDER BY i.name ASC
+            """)
+    List<InventoryCategory> listAllInventoryCategory();
 
 }

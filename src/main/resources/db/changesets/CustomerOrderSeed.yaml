@@ -1,0 +1,144 @@
+databaseChangeLog:
+  - changeSet:
+      id: seed_customer_order_data
+      author: admin
+      changes:
+        - sql:
+            sql: |
+              -- Orders for customer id=24 (Mia Rossi, mia.rossi@rome.it)
+              -- and a few other customers for variety
+
+              INSERT INTO customer_order (
+                uuid, order_code, customer_id, customer_name, customer_email,
+                delivery_location, total_value, currency, status, order_placed_at,
+                active, archive, created, modified
+              ) VALUES
+              ('c0000001-0001-0001-0001-000000000001', 'ORD-2026-0001', '24', 'Mia Rossi', 'mia.rossi@rome.it',
+               'Rome, Italy', 4820000, 'INR', 'DELIVERED', '2026-01-12 10:30:00', true, false, NOW(), NOW()),
+
+              ('c0000001-0002-0002-0002-000000000002', 'ORD-2026-0002', '24', 'Mia Rossi', 'mia.rossi@rome.it',
+               'Milan, Italy', 890000, 'INR', 'RETURNED', '2026-02-05 14:00:00', true, false, NOW(), NOW()),
+
+              ('c0000001-0003-0003-0003-000000000003', 'ORD-2026-0003', '24', 'Mia Rossi', 'mia.rossi@rome.it',
+               'Florence, Italy', 1500000, 'INR', 'DELIVERED', '2026-03-18 09:15:00', true, false, NOW(), NOW()),
+
+              ('c0000001-0004-0004-0004-000000000004', 'ORD-2026-0004', '24', 'Mia Rossi', 'mia.rossi@rome.it',
+               'Rome, Italy', 700000, 'INR', 'DELIVERED', '2026-04-22 16:45:00', true, false, NOW(), NOW()),
+
+              ('c0000001-0005-0005-0005-000000000005', 'ORD-2026-0005', '24', 'Mia Rossi', 'mia.rossi@rome.it',
+               'Naples, Italy', 2800000, 'INR', 'CANCELLED', '2026-05-10 11:00:00', true, false, NOW(), NOW()),
+
+              ('c0000001-0006-0006-0006-000000000006', 'ORD-2026-0006', '24', 'Mia Rossi', 'mia.rossi@rome.it',
+               'Venice, Italy', 350000, 'INR', 'DELIVERED', '2026-06-03 13:20:00', true, false, NOW(), NOW()),
+
+              ('c0000001-0007-0007-0007-000000000007', 'ORD-2026-0007', '24', 'Mia Rossi', 'mia.rossi@rome.it',
+               'Rome, Italy', 550000, 'INR', 'IN_TRANSIT', '2026-07-28 10:00:00', true, false, NOW(), NOW()),
+
+              ('c0000001-0008-0008-0008-000000000008', 'ORD-2026-0008', '24', 'Mia Rossi', 'mia.rossi@rome.it',
+               'Rome, Italy', 1200000, 'INR', 'ORDER_PLACED', '2026-08-04 15:30:00', true, false, NOW(), NOW())
+
+              ON CONFLICT (order_code) DO NOTHING;
+
+              -- Order Items
+              INSERT INTO customer_order_item (
+                uuid, customer_order_id, product_uuid, product_name, product_image_url,
+                price, currency, dimensions, comment, rating, reason_for_return,
+                active, archive, created, modified
+              ) VALUES
+
+              -- ORD-2026-0001: Bridal Lehenga + Cashmere Scarf
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0001'),
+               '66ffaabb-6677-8899-aabb-ccddeeffaabb',
+               'Crimson Bridal Lehenga',
+               'https://images.unsplash.com/photo-1606791405792-1004f1718d0c?w=400&q=80',
+               4500000, 'INR', 'Bust 34in, Waist 26in, Hip 36in',
+               'Absolutely stunning! Perfect for my daughter''s wedding. The embroidery work is extraordinary.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0001'),
+               '99ccddee-99aa-bbcc-ddee-ffaabbccddee',
+               'Cashmere Cloud Scarf',
+               'https://images.unsplash.com/photo-1606760227091-3dd870d97f1d?w=400&q=80',
+               320000, 'INR', NULL,
+               'Feather light and incredibly soft. The ivory colour is beautiful.',
+               4, NULL, true, false, NOW(), NOW()),
+
+              -- ORD-2026-0002: Silk Maxi (Returned)
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0002'),
+               '11aabbcc-1122-3344-5566-778899aabbcc',
+               'Midnight Silk Maxi',
+               'https://images.unsplash.com/photo-1585487000160-6ebcfceb0d03?w=400&q=80',
+               890000, 'INR', 'Size XS / EU 34 / Bust 32in',
+               'Beautiful fabric but the fit was not right for my body type.',
+               2, 'Size does not fit — too small in the waist. Requesting exchange for size S.', true, false, NOW(), NOW()),
+
+              -- ORD-2026-0003: Heritage Kanjivaram Saree
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0003'),
+               '44ddeeff-4455-6677-8899-aabbccddeeff',
+               'Heritage Kanjivaram Saree',
+               'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&q=80',
+               1500000, 'INR', 'Standard / Free Size (6 yards)',
+               'Heirloom quality. The zari work is breathtaking. Will treasure this forever.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              -- ORD-2026-0004: Emerald Kurta Set + Milano Belt
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0004'),
+               '55eeffaa-5566-7788-99aa-bbccddeeffaa',
+               'Emerald Kurta Set',
+               'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=400&q=80',
+               420000, 'INR', 'Size M / Chest 38in, Length 42in',
+               'Great design and excellent quality cotton. The hand-block print is very detailed.',
+               4, NULL, true, false, NOW(), NOW()),
+
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0004'),
+               '88bbccdd-8899-aabb-ccdd-eeffaabbccdd',
+               'Milano Leather Belt',
+               'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&q=80',
+               280000, 'INR', '85cm / Size S-M',
+               'Perfectly crafted. The brass buckle has a satisfying weight to it.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              -- ORD-2026-0005: Banarasi Saree (Cancelled — no rating/comment)
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0005'),
+               '77aabbcc-7788-99aa-bbcc-ddeeffaabbcc',
+               'Royal Banarasi Bridal Saree',
+               'https://images.unsplash.com/photo-1583391733981-8498408ee4b6?w=400&q=80',
+               2800000, 'INR', 'Standard / Free Size (6 yards)',
+               NULL, NULL, 'Order cancelled — wedding date changed', true, false, NOW(), NOW()),
+
+              -- ORD-2026-0006: Azure Breezy Blouse
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0006'),
+               '22bbccdd-2233-4455-6677-8899aabbccdd',
+               'Azure Breezy Blouse',
+               'https://images.unsplash.com/photo-1564257631407-4deb1f99d992?w=400&q=80',
+               350000, 'INR', 'Size XS / Bust 32in',
+               'Light and elegant. Perfect for summer evenings.',
+               4, NULL, true, false, NOW(), NOW()),
+
+              -- ORD-2026-0007: Ivory Palazzo Set (In Transit — no review yet)
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0007'),
+               '33ccddee-3344-5566-7788-99aabbccddee',
+               'Ivory Palazzo Set',
+               'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400&q=80',
+               550000, 'INR', 'Size S / Waist 26in, Inseam 40in',
+               NULL, NULL, NULL, true, false, NOW(), NOW()),
+
+              -- ORD-2026-0008: Classic Wool Trench (Order Placed — no review yet)
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0008'),
+               'aaddeeaa-aabb-ccdd-eeff-aabbccddeeff',
+               'Classic Wool Trench',
+               'https://images.unsplash.com/photo-1548624313-0396c75e4b1a?w=400&q=80',
+               1200000, 'INR', 'Size S / EU 36 / Chest 34in',
+               NULL, NULL, NULL, true, false, NOW(), NOW())
+
+              ON CONFLICT (uuid) DO NOTHING;

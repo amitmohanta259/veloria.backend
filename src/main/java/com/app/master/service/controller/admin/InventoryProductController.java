@@ -27,7 +27,7 @@ public class InventoryProductController extends AppController {
     @PostMapping("/create/{subCategoryUuid}")
     public ResponseEntity<Response> createInventoryProduct(@PathVariable UUID subCategoryUuid,
                                                            @RequestPart("product") InventoryProduct product,
-                                                           @RequestPart("images") List<MultipartFile> images) throws VeloriaException {
+                                                           @RequestPart(value = "images", required = false) List<MultipartFile> images) throws VeloriaException {
 
         service.createInventoryProduct(subCategoryUuid, product, images);
         return success(ResponseCode.CREATED, "Inventory product created successfully");
@@ -36,7 +36,7 @@ public class InventoryProductController extends AppController {
     @PutMapping("/update/{productUuid}")
     public ResponseEntity<Response> updateInventoryProduct(@PathVariable UUID productUuid,
                                                            @RequestPart("product") InventoryProduct product,
-                                                           @RequestPart("images") List<MultipartFile> images) throws VeloriaException {
+                                                           @RequestPart(value = "images", required = false) List<MultipartFile> images) throws VeloriaException {
 
         service.updateInventoryProduct(productUuid, product, images);
         return success(ResponseCode.UPDATED, "Inventory product updated successfully");
@@ -68,6 +68,22 @@ public class InventoryProductController extends AppController {
                                                             @RequestParam(required = false) String search) throws VeloriaException {
 
         return data(ResponseCode.FETCHED, "All inventory product fetched successfully", service.getInventoryProductList(subCategoryUuid, page, pageSize, search));
+    }
+
+    @GetMapping("/performance-ledger")
+    public ResponseEntity<Response> getPerformanceLedger() throws VeloriaException {
+        return data(ResponseCode.FETCHED, "Performance ledger fetched successfully", service.getPerformanceLedger());
+    }
+
+    @GetMapping("/inventory-stats")
+    public ResponseEntity<Response> inventoryStats() throws VeloriaException {
+        return data(ResponseCode.FETCHED, "Inventory stats fetched successfully", service.getInventoryStats());
+    }
+
+    @GetMapping("/top-sellers")
+    public ResponseEntity<Response> topSellers(
+            @RequestParam(defaultValue = "monthly") String period) throws VeloriaException {
+        return data(ResponseCode.FETCHED, "Top sellers fetched successfully", service.getTopSellers(period));
     }
 
 }

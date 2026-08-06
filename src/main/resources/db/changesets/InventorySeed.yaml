@@ -1,0 +1,236 @@
+databaseChangeLog:
+  - changeSet:
+      id: inventory_seed_categories
+      author: veloria-seed
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO inventory_category (uuid, name, description, active, archive, created)
+              VALUES
+                ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'Western Wear', 'Contemporary western fashion for every occasion', true, false, now()),
+                ('b2c3d4e5-f6a7-8901-bcde-f12345678901', 'Indian Traditional', 'Timeless Indian ethnic wear rooted in heritage', true, false, now()),
+                ('c3d4e5f6-a7b8-9012-cdef-123456789012', 'Wedding Collection', 'Exquisite bridal and ceremonial couture', true, false, now()),
+                ('d4e5f6a7-b8c9-0123-defa-234567890123', 'Accessories', 'Curated luxury accessories to complete any look', true, false, now())
+              ON CONFLICT DO NOTHING;
+
+  - changeSet:
+      id: inventory_seed_collections
+      author: veloria-seed
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO inventory_collection (uuid, name, description, category_id, active, archive, created)
+              VALUES
+                ('e5f6a7b8-c9d0-1234-efab-345678901234', 'Summer 2024', 'Breezy silhouettes and lightweight fabrics for warm days',
+                  (SELECT id FROM inventory_category WHERE uuid = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'), true, false, now()),
+                ('f9a0b1c2-d3e4-5678-fabc-456789012345', 'Winter Luxe', 'Rich textures and warm layers for cooler seasons',
+                  (SELECT id FROM inventory_category WHERE uuid = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'), true, false, now()),
+                ('f6a7b8c9-d0e1-2345-fabc-456789012345', 'Festive Special', 'Vibrant pieces crafted for celebrations and festivals',
+                  (SELECT id FROM inventory_category WHERE uuid = 'b2c3d4e5-f6a7-8901-bcde-f12345678901'), true, false, now()),
+                ('a7b8c9d0-e1f2-3456-abcd-567890123456', 'Bridal Luxe', 'The finest bridal couture for your most special day',
+                  (SELECT id FROM inventory_category WHERE uuid = 'c3d4e5f6-a7b8-9012-cdef-123456789012'), true, false, now()),
+                ('b8c9d0e1-f2a3-4567-bcde-678901234567', 'Signature Series', 'Statement accessories from our permanent collection',
+                  (SELECT id FROM inventory_category WHERE uuid = 'd4e5f6a7-b8c9-0123-defa-234567890123'), true, false, now())
+              ON CONFLICT DO NOTHING;
+
+  - changeSet:
+      id: inventory_seed_subcategories
+      author: veloria-seed
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO inventory_sub_category (uuid, name, description, collection_id, active, archive, created)
+              VALUES
+                ('d0e1f2a3-b4c5-6789-defa-890123456789', 'Maxi Dresses', 'Floor-length dresses for effortless summer style',
+                  (SELECT id FROM inventory_collection WHERE uuid = 'e5f6a7b8-c9d0-1234-efab-345678901234'), true, false, now()),
+                ('e1f2a3b4-c5d6-7890-efab-901234567890', 'Silk Blouses', 'Refined silk tops for work and evening wear',
+                  (SELECT id FROM inventory_collection WHERE uuid = 'e5f6a7b8-c9d0-1234-efab-345678901234'), true, false, now()),
+                ('aa00bb11-cc22-dd33-ee44-ff5566778899', 'Palazzo Pants', 'Wide-leg palazzo trousers in premium fabrics',
+                  (SELECT id FROM inventory_collection WHERE uuid = 'e5f6a7b8-c9d0-1234-efab-345678901234'), true, false, now()),
+                ('bb11cc22-dd33-ee44-ff55-667788990011', 'Trench Coats', 'Classic trench coats reimagined for the modern wardrobe',
+                  (SELECT id FROM inventory_collection WHERE uuid = 'f9a0b1c2-d3e4-5678-fabc-456789012345'), true, false, now()),
+                ('f2a3b4c5-d6e7-8901-fabc-012345678901', 'Sarees', 'Handwoven and designer sarees for every occasion',
+                  (SELECT id FROM inventory_collection WHERE uuid = 'f6a7b8c9-d0e1-2345-fabc-456789012345'), true, false, now()),
+                ('a3b4c5d6-e7f8-9012-abcd-123456789012', 'Kurtas', 'Elegant kurtas in cotton, silk and handloom fabrics',
+                  (SELECT id FROM inventory_collection WHERE uuid = 'f6a7b8c9-d0e1-2345-fabc-456789012345'), true, false, now()),
+                ('b4c5d6e7-f8a9-0123-bcde-234567890123', 'Lehengas', 'Embroidered lehengas for weddings and grand occasions',
+                  (SELECT id FROM inventory_collection WHERE uuid = 'a7b8c9d0-e1f2-3456-abcd-567890123456'), true, false, now()),
+                ('c5d6e7f8-a9b0-1234-cdef-345678901234', 'Bridal Sarees', 'Opulent bridal sarees in pure silk and zari',
+                  (SELECT id FROM inventory_collection WHERE uuid = 'a7b8c9d0-e1f2-3456-abcd-567890123456'), true, false, now()),
+                ('d6e7f8a9-b0c1-2345-defa-456789012345', 'Belts', 'Italian-crafted leather and chain belts',
+                  (SELECT id FROM inventory_collection WHERE uuid = 'b8c9d0e1-f2a3-4567-bcde-678901234567'), true, false, now()),
+                ('e7f8a9b0-c1d2-3456-efab-567890123456', 'Scarves', 'Luxurious scarves in cashmere, silk and modal',
+                  (SELECT id FROM inventory_collection WHERE uuid = 'b8c9d0e1-f2a3-4567-bcde-678901234567'), true, false, now())
+              ON CONFLICT DO NOTHING;
+
+  - changeSet:
+      id: inventory_seed_products
+      author: veloria-seed
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO inventory_product (uuid, name, description, sku_id, price, price_currency, initial_stock, visibility, gender, draft, active, archive, created)
+              VALUES
+                ('11aabbcc-1122-3344-5566-778899aabbcc',
+                  'Midnight Silk Maxi',
+                  'A sweeping floor-length maxi in pure charmeuse silk. Features a deep V-neckline, gathered waist, and adjustable spaghetti straps.',
+                  'VEL-S24-DRS-001', 890000, 'INR', 45, 'LIVE', 'FEMALE', false, true, false, now()),
+
+                ('22bbccdd-2233-4455-6677-8899aabbccdd',
+                  'Azure Breezy Blouse',
+                  'A billowy silk blouse in azure blue with pearl buttons and wide bishop sleeves. Effortlessly transitions from boardroom to evening.',
+                  'VEL-S24-BLS-002', 350000, 'INR', 82, 'LIVE', 'FEMALE', false, true, false, now()),
+
+                ('33ccddee-3344-5566-7788-99aabbccddee',
+                  'Ivory Palazzo Set',
+                  'Wide-leg ivory palazzo trousers with a matching draped kurta top. Hand-embroidered border in antique gold thread.',
+                  'VEL-S24-PAL-003', 550000, 'INR', 0, 'OUT_OF_STOCK', 'FEMALE', false, true, false, now()),
+
+                ('44ddeeff-4455-6677-8899-aabbccddeeff',
+                  'Heritage Kanjivaram Saree',
+                  'A pure silk Kanjivaram saree in vermillion with a rich gold zari border. Handwoven by master weavers from Kanchipuram.',
+                  'VEL-FST-SAR-004', 1500000, 'INR', 12, 'LIVE', 'FEMALE', false, true, false, now()),
+
+                ('55eeffaa-5566-7788-99aa-bbccddeeffaa',
+                  'Emerald Kurta Set',
+                  'A fine cotton kurta in emerald green with hand-block printed motifs. Paired with straight-cut pants and a sheer dupatta.',
+                  'VEL-FST-KRT-005', 420000, 'INR', 67, 'LIVE', 'UNISEX', false, true, false, now()),
+
+                ('66ffaabb-6677-8899-aabb-ccddeeffaabb',
+                  'Crimson Bridal Lehenga',
+                  'A showstopping three-piece bridal lehenga in crimson velvet with heavy Resham and Zardosi embroidery throughout.',
+                  'VEL-BRD-LEH-006', 4500000, 'INR', 5, 'LIVE', 'FEMALE', false, true, false, now()),
+
+                ('77aabbcc-7788-99aa-bbcc-ddeeffaabbcc',
+                  'Royal Banarasi Bridal Saree',
+                  'Six yards of pure Banarasi silk brocade in deep burgundy with intricate gold meenakari work. Heirloom quality.',
+                  'VEL-BRD-SAR-007', 2800000, 'INR', 8, 'LIVE', 'FEMALE', false, true, false, now()),
+
+                ('88bbccdd-8899-aabb-ccdd-eeffaabbccdd',
+                  'Milano Leather Belt',
+                  'Hand-stitched full-grain Italian leather belt with a solid brass pin buckle. Available in cognac, black and ivory.',
+                  'VEL-ACC-BLT-008', 280000, 'INR', 120, 'LIVE', 'UNISEX', false, true, false, now()),
+
+                ('99ccddee-99aa-bbcc-ddee-ffaabbccddee',
+                  'Cashmere Cloud Scarf',
+                  'Feather-light 2-ply Mongolian cashmere scarf. Naturally temperature-regulating and impossibly soft against skin.',
+                  'VEL-ACC-SCF-009', 320000, 'INR', 95, 'LIVE', 'UNISEX', false, true, false, now()),
+
+                ('aaddeeaa-aabb-ccdd-eeff-aabbccddeeff',
+                  'Classic Wool Trench',
+                  'A timeless double-breasted trench coat in Scottish wool twill. Fully lined with contrast paisley silk and belted waist.',
+                  'VEL-WIN-TRN-010', 1200000, 'INR', 23, 'LIVE', 'UNISEX', false, true, false, now())
+              ON CONFLICT DO NOTHING;
+
+              UPDATE inventory_product SET sub_category_id =
+                (SELECT id FROM inventory_sub_category WHERE uuid = 'd0e1f2a3-b4c5-6789-defa-890123456789')
+              WHERE uuid = '11aabbcc-1122-3344-5566-778899aabbcc';
+
+              UPDATE inventory_product SET sub_category_id =
+                (SELECT id FROM inventory_sub_category WHERE uuid = 'e1f2a3b4-c5d6-7890-efab-901234567890')
+              WHERE uuid = '22bbccdd-2233-4455-6677-8899aabbccdd';
+
+              UPDATE inventory_product SET sub_category_id =
+                (SELECT id FROM inventory_sub_category WHERE uuid = 'aa00bb11-cc22-dd33-ee44-ff5566778899')
+              WHERE uuid = '33ccddee-3344-5566-7788-99aabbccddee';
+
+              UPDATE inventory_product SET sub_category_id =
+                (SELECT id FROM inventory_sub_category WHERE uuid = 'f2a3b4c5-d6e7-8901-fabc-012345678901')
+              WHERE uuid = '44ddeeff-4455-6677-8899-aabbccddeeff';
+
+              UPDATE inventory_product SET sub_category_id =
+                (SELECT id FROM inventory_sub_category WHERE uuid = 'a3b4c5d6-e7f8-9012-abcd-123456789012')
+              WHERE uuid = '55eeffaa-5566-7788-99aa-bbccddeeffaa';
+
+              UPDATE inventory_product SET sub_category_id =
+                (SELECT id FROM inventory_sub_category WHERE uuid = 'b4c5d6e7-f8a9-0123-bcde-234567890123')
+              WHERE uuid = '66ffaabb-6677-8899-aabb-ccddeeffaabb';
+
+              UPDATE inventory_product SET sub_category_id =
+                (SELECT id FROM inventory_sub_category WHERE uuid = 'c5d6e7f8-a9b0-1234-cdef-345678901234')
+              WHERE uuid = '77aabbcc-7788-99aa-bbcc-ddeeffaabbcc';
+
+              UPDATE inventory_product SET sub_category_id =
+                (SELECT id FROM inventory_sub_category WHERE uuid = 'd6e7f8a9-b0c1-2345-defa-456789012345')
+              WHERE uuid = '88bbccdd-8899-aabb-ccdd-eeffaabbccdd';
+
+              UPDATE inventory_product SET sub_category_id =
+                (SELECT id FROM inventory_sub_category WHERE uuid = 'e7f8a9b0-c1d2-3456-efab-567890123456')
+              WHERE uuid = '99ccddee-99aa-bbcc-ddee-ffaabbccddee';
+
+              UPDATE inventory_product SET sub_category_id =
+                (SELECT id FROM inventory_sub_category WHERE uuid = 'bb11cc22-dd33-ee44-ff55-667788990011')
+              WHERE uuid = 'aaddeeaa-aabb-ccdd-eeff-aabbccddeeff';
+
+  - changeSet:
+      id: inventory_seed_images
+      author: veloria-seed
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              VALUES
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '11aabbcc-1122-3344-5566-778899aabbcc'),
+                  'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&w=800&q=80', now()),
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '11aabbcc-1122-3344-5566-778899aabbcc'),
+                  'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&w=800&q=80', now()),
+
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '22bbccdd-2233-4455-6677-8899aabbccdd'),
+                  'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?auto=format&w=800&q=80', now()),
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '22bbccdd-2233-4455-6677-8899aabbccdd'),
+                  'https://images.unsplash.com/photo-1583744946564-b52ac1c389c8?auto=format&w=800&q=80', now()),
+
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '33ccddee-3344-5566-7788-99aabbccddee'),
+                  'https://images.unsplash.com/photo-1583391733956-6c78276477e1?auto=format&w=800&q=80', now()),
+
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '44ddeeff-4455-6677-8899-aabbccddeeff'),
+                  'https://images.unsplash.com/photo-1621184455862-c163dfb30e0f?auto=format&w=800&q=80', now()),
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '44ddeeff-4455-6677-8899-aabbccddeeff'),
+                  'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&w=800&q=80', now()),
+
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '55eeffaa-5566-7788-99aa-bbccddeeffaa'),
+                  'https://images.unsplash.com/photo-1562157873-818bc0726f68?auto=format&w=800&q=80', now()),
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '55eeffaa-5566-7788-99aa-bbccddeeffaa'),
+                  'https://images.unsplash.com/photo-1598033129183-c4f50c736f10?auto=format&w=800&q=80', now()),
+
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '66ffaabb-6677-8899-aabb-ccddeeffaabb'),
+                  'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&w=800&q=80', now()),
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '66ffaabb-6677-8899-aabb-ccddeeffaabb'),
+                  'https://images.unsplash.com/photo-1583391733956-6c78276477e1?auto=format&w=800&q=80', now()),
+
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '77aabbcc-7788-99aa-bbcc-ddeeffaabbcc'),
+                  'https://images.unsplash.com/photo-1606503153255-59d5e417476a?auto=format&w=800&q=80', now()),
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '77aabbcc-7788-99aa-bbcc-ddeeffaabbcc'),
+                  'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&w=800&q=80', now()),
+
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '88bbccdd-8899-aabb-ccdd-eeffaabbccdd'),
+                  'https://images.unsplash.com/photo-1591257872930-82dd4c30dd13?auto=format&w=800&q=80', now()),
+
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '99ccddee-99aa-bbcc-ddee-ffaabbccddee'),
+                  'https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&w=800&q=80', now()),
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = '99ccddee-99aa-bbcc-ddee-ffaabbccddee'),
+                  'https://images.unsplash.com/photo-1520903920243-00d872a2d1c9?auto=format&w=800&q=80', now()),
+
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = 'aaddeeaa-aabb-ccdd-eeff-aabbccddeeff'),
+                  'https://images.unsplash.com/photo-1548883354-94bcfe321cbb?auto=format&w=800&q=80', now()),
+                (gen_random_uuid(),
+                  (SELECT id FROM inventory_product WHERE uuid = 'aaddeeaa-aabb-ccdd-eeff-aabbccddeeff'),
+                  'https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&w=800&q=80', now())
+              ON CONFLICT DO NOTHING;

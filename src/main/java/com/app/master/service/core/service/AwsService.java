@@ -91,6 +91,9 @@ public class AwsService extends AppService {
     }
 
     public String getViewablePreSignedUrl(String key) throws IOException {
+        if (key != null && (key.startsWith("http://") || key.startsWith("https://"))) {
+            return key;
+        }
         try {
             //Determining content type based on file extension
             String contentType = determineContentType(key);

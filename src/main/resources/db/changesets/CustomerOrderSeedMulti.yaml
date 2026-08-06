@@ -1,0 +1,459 @@
+databaseChangeLog:
+  - changeSet:
+      id: seed_customer_order_multi
+      author: admin
+      changes:
+        - sql:
+            sql: |
+              -- ─────────────────────────────────────────────────────────────
+              -- ORDERS FOR MULTIPLE CUSTOMERS
+              -- Customer 6  : Isabella Montague  (VIP)
+              -- Customer 7  : Alexander Thorne   (Active)
+              -- Customer 8  : Julian Pierce      (VIP)
+              -- Customer 9  : Sofia Romano       (Active)
+              -- Customer 10 : Elena Rodriguez    (Active)
+              -- Customer 11 : Marcus Chen        (Active)
+              -- Customer 12 : Oliver Bennett     (VIP)
+              -- ─────────────────────────────────────────────────────────────
+
+              INSERT INTO customer_order (
+                uuid, order_code, customer_id, customer_name, customer_email,
+                delivery_location, total_value, currency, status, order_placed_at,
+                active, archive, created, modified
+              ) VALUES
+
+              -- ── Isabella Montague (CID-6) ──────────────────────────────
+              ('c0000006-0001-0001-0001-000000000001', 'ORD-2026-0101', '6',
+               'Isabella Montague', 'i.montague@veloria.com',
+               'London, United Kingdom', 4820000, 'INR', 'DELIVERED',
+               '2026-01-08 11:00:00', true, false, NOW(), NOW()),
+
+              ('c0000006-0002-0002-0002-000000000002', 'ORD-2026-0102', '6',
+               'Isabella Montague', 'i.montague@veloria.com',
+               'London, United Kingdom', 1500000, 'INR', 'DELIVERED',
+               '2026-03-14 10:30:00', true, false, NOW(), NOW()),
+
+              ('c0000006-0003-0003-0003-000000000003', 'ORD-2026-0103', '6',
+               'Isabella Montague', 'i.montague@veloria.com',
+               'Paris, France', 2800000, 'INR', 'IN_TRANSIT',
+               '2026-07-20 09:00:00', true, false, NOW(), NOW()),
+
+              ('c0000006-0004-0004-0004-000000000004', 'ORD-2026-0104', '6',
+               'Isabella Montague', 'i.montague@veloria.com',
+               'London, United Kingdom', 630000, 'INR', 'ORDER_PLACED',
+               '2026-08-03 14:00:00', true, false, NOW(), NOW()),
+
+              -- ── Alexander Thorne (CID-7) ───────────────────────────────
+              ('c0000007-0001-0001-0001-000000000001', 'ORD-2026-0201', '7',
+               'Alexander Thorne', 'thorne.a@gmail.com',
+               'Edinburgh, Scotland', 420000, 'INR', 'DELIVERED',
+               '2026-02-10 13:00:00', true, false, NOW(), NOW()),
+
+              ('c0000007-0002-0002-0002-000000000002', 'ORD-2026-0202', '7',
+               'Alexander Thorne', 'thorne.a@gmail.com',
+               'Edinburgh, Scotland', 600000, 'INR', 'DELIVERED',
+               '2026-04-18 16:30:00', true, false, NOW(), NOW()),
+
+              ('c0000007-0003-0003-0003-000000000003', 'ORD-2026-0203', '7',
+               'Alexander Thorne', 'thorne.a@gmail.com',
+               'Edinburgh, Scotland', 1200000, 'INR', 'IN_TRANSIT',
+               '2026-07-29 10:00:00', true, false, NOW(), NOW()),
+
+              -- ── Julian Pierce (CID-8) ──────────────────────────────────
+              ('c0000008-0001-0001-0001-000000000001', 'ORD-2026-0301', '8',
+               'Julian Pierce', 'j.pierce@corporate.com',
+               'New York, USA', 4780000, 'INR', 'DELIVERED',
+               '2026-01-20 10:00:00', true, false, NOW(), NOW()),
+
+              ('c0000008-0002-0002-0002-000000000002', 'ORD-2026-0302', '8',
+               'Julian Pierce', 'j.pierce@corporate.com',
+               'New York, USA', 1820000, 'INR', 'DELIVERED',
+               '2026-03-05 09:30:00', true, false, NOW(), NOW()),
+
+              ('c0000008-0003-0003-0003-000000000003', 'ORD-2026-0303', '8',
+               'Julian Pierce', 'j.pierce@corporate.com',
+               'New York, USA', 890000, 'INR', 'RETURNED',
+               '2026-05-22 11:45:00', true, false, NOW(), NOW()),
+
+              ('c0000008-0004-0004-0004-000000000004', 'ORD-2026-0304', '8',
+               'Julian Pierce', 'j.pierce@corporate.com',
+               'New York, USA', 2800000, 'INR', 'ORDER_PLACED',
+               '2026-08-05 08:00:00', true, false, NOW(), NOW()),
+
+              -- ── Sofia Romano (CID-9) ───────────────────────────────────
+              ('c0000009-0001-0001-0001-000000000001', 'ORD-2026-0401', '9',
+               'Sofia Romano', 's.romano@milano.it',
+               'Milan, Italy', 900000, 'INR', 'DELIVERED',
+               '2026-02-28 14:00:00', true, false, NOW(), NOW()),
+
+              ('c0000009-0002-0002-0002-000000000002', 'ORD-2026-0402', '9',
+               'Sofia Romano', 's.romano@milano.it',
+               'Milan, Italy', 320000, 'INR', 'DELIVERED',
+               '2026-04-10 12:00:00', true, false, NOW(), NOW()),
+
+              ('c0000009-0003-0003-0003-000000000003', 'ORD-2026-0403', '9',
+               'Sofia Romano', 's.romano@milano.it',
+               'Milan, Italy', 420000, 'INR', 'CANCELLED',
+               '2026-06-15 09:00:00', true, false, NOW(), NOW()),
+
+              -- ── Elena Rodriguez (CID-10) ───────────────────────────────
+              ('c0000010-0001-0001-0001-000000000001', 'ORD-2026-0501', '10',
+               'Elena Rodriguez', 'elena.rod@design.es',
+               'Barcelona, Spain', 770000, 'INR', 'DELIVERED',
+               '2026-02-14 10:00:00', true, false, NOW(), NOW()),
+
+              ('c0000010-0002-0002-0002-000000000002', 'ORD-2026-0502', '10',
+               'Elena Rodriguez', 'elena.rod@design.es',
+               'Barcelona, Spain', 1200000, 'INR', 'DELIVERED',
+               '2026-05-03 15:00:00', true, false, NOW(), NOW()),
+
+              ('c0000010-0003-0003-0003-000000000003', 'ORD-2026-0503', '10',
+               'Elena Rodriguez', 'elena.rod@design.es',
+               'Barcelona, Spain', 550000, 'INR', 'IN_TRANSIT',
+               '2026-07-31 11:00:00', true, false, NOW(), NOW()),
+
+              -- ── Marcus Chen (CID-11) ───────────────────────────────────
+              ('c0000011-0001-0001-0001-000000000001', 'ORD-2026-0601', '11',
+               'Marcus Chen', 'm.chen@tech.com',
+               'Singapore', 700000, 'INR', 'DELIVERED',
+               '2026-03-08 09:00:00', true, false, NOW(), NOW()),
+
+              ('c0000011-0002-0002-0002-000000000002', 'ORD-2026-0602', '11',
+               'Marcus Chen', 'm.chen@tech.com',
+               'Singapore', 1200000, 'INR', 'DELIVERED',
+               '2026-05-19 14:30:00', true, false, NOW(), NOW()),
+
+              ('c0000011-0003-0003-0003-000000000003', 'ORD-2026-0603', '11',
+               'Marcus Chen', 'm.chen@tech.com',
+               'Singapore', 420000, 'INR', 'ORDER_PLACED',
+               '2026-08-04 10:00:00', true, false, NOW(), NOW()),
+
+              -- ── Oliver Bennett (CID-12) ────────────────────────────────
+              ('c0000012-0001-0001-0001-000000000001', 'ORD-2026-0701', '12',
+               'Oliver Bennett', 'oliver.b@agency.uk',
+               'Manchester, United Kingdom', 4500000, 'INR', 'DELIVERED',
+               '2026-01-15 10:00:00', true, false, NOW(), NOW()),
+
+              ('c0000012-0002-0002-0002-000000000002', 'ORD-2026-0702', '12',
+               'Oliver Bennett', 'oliver.b@agency.uk',
+               'Manchester, United Kingdom', 2800000, 'INR', 'DELIVERED',
+               '2026-03-22 13:00:00', true, false, NOW(), NOW()),
+
+              ('c0000012-0003-0003-0003-000000000003', 'ORD-2026-0703', '12',
+               'Oliver Bennett', 'oliver.b@agency.uk',
+               'Manchester, United Kingdom', 1820000, 'INR', 'DELIVERED',
+               '2026-05-30 09:30:00', true, false, NOW(), NOW()),
+
+              ('c0000012-0004-0004-0004-000000000004', 'ORD-2026-0704', '12',
+               'Oliver Bennett', 'oliver.b@agency.uk',
+               'London, United Kingdom', 1200000, 'INR', 'IN_TRANSIT',
+               '2026-07-25 16:00:00', true, false, NOW(), NOW())
+
+              ON CONFLICT (order_code) DO NOTHING;
+
+              -- ─────────────────────────────────────────────────────────────
+              -- ORDER ITEMS
+              -- ─────────────────────────────────────────────────────────────
+
+              INSERT INTO customer_order_item (
+                uuid, customer_order_id, product_uuid, product_name, product_image_url,
+                price, currency, dimensions, comment, rating, reason_for_return,
+                active, archive, created, modified
+              ) VALUES
+
+              -- ── ORD-2026-0101 : Isabella — Bridal Lehenga + Cashmere Scarf ──
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0101'),
+               '66ffaabb-6677-8899-aabb-ccddeeffaabb', 'Crimson Bridal Lehenga',
+               'https://images.unsplash.com/photo-1606791405792-1004f1718d0c?w=400&q=80',
+               4500000, 'INR', 'Bust 36in, Waist 28in, Hip 38in',
+               'The craftsmanship is extraordinary. Every bead placed with such precision. Truly heirloom quality.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0101'),
+               '99ccddee-99aa-bbcc-ddee-ffaabbccddee', 'Cashmere Cloud Scarf',
+               'https://images.unsplash.com/photo-1606760227091-3dd870d97f1d?w=400&q=80',
+               320000, 'INR', NULL,
+               'Paired beautifully with the lehenga. Incredibly soft and drapes like a dream.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0102 : Isabella — Heritage Kanjivaram Saree ──────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0102'),
+               '44ddeeff-4455-6677-8899-aabbccddeeff', 'Heritage Kanjivaram Saree',
+               'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&q=80',
+               1500000, 'INR', 'Standard / Free Size (6 yards)',
+               'A masterpiece. The gold zari catches light beautifully. My most treasured piece.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0103 : Isabella — Royal Banarasi Saree (In Transit) ──
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0103'),
+               '77aabbcc-7788-99aa-bbcc-ddeeffaabbcc', 'Royal Banarasi Bridal Saree',
+               'https://images.unsplash.com/photo-1583391733981-8498408ee4b6?w=400&q=80',
+               2800000, 'INR', 'Standard / Free Size (6 yards)',
+               NULL, NULL, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0104 : Isabella — Milano Belt + Azure Blouse ──────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0104'),
+               '88bbccdd-8899-aabb-ccdd-eeffaabbccdd', 'Milano Leather Belt',
+               'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&q=80',
+               280000, 'INR', '90cm / Size M',
+               NULL, NULL, NULL, true, false, NOW(), NOW()),
+
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0104'),
+               '22bbccdd-2233-4455-6677-8899aabbccdd', 'Azure Breezy Blouse',
+               'https://images.unsplash.com/photo-1564257631407-4deb1f99d992?w=400&q=80',
+               350000, 'INR', 'Size S / Bust 34in',
+               NULL, NULL, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0201 : Alexander — Emerald Kurta Set ─────────────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0201'),
+               '55eeffaa-5566-7788-99aa-bbccddeeffaa', 'Emerald Kurta Set',
+               'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=400&q=80',
+               420000, 'INR', 'Size L / Chest 42in, Length 44in',
+               'Perfect fit and beautiful hand-block print. The fabric quality is outstanding.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0202 : Alexander — Milano Belt + Cashmere Scarf ───────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0202'),
+               '88bbccdd-8899-aabb-ccdd-eeffaabbccdd', 'Milano Leather Belt',
+               'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&q=80',
+               280000, 'INR', '95cm / Size L',
+               'Solid build, genuine leather smell. Great addition to my wardrobe.',
+               4, NULL, true, false, NOW(), NOW()),
+
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0202'),
+               '99ccddee-99aa-bbcc-ddee-ffaabbccddee', 'Cashmere Cloud Scarf',
+               'https://images.unsplash.com/photo-1606760227091-3dd870d97f1d?w=400&q=80',
+               320000, 'INR', NULL,
+               'A gift for my mother — she loves it. The packaging was also very elegant.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0203 : Alexander — Classic Wool Trench (In Transit) ───
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0203'),
+               'aaddeeaa-aabb-ccdd-eeff-aabbccddeeff', 'Classic Wool Trench',
+               'https://images.unsplash.com/photo-1548624313-0396c75e4b1a?w=400&q=80',
+               1200000, 'INR', 'Size M / EU 50 / Chest 40in',
+               NULL, NULL, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0301 : Julian — Bridal Lehenga + Milano Belt ──────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0301'),
+               '66ffaabb-6677-8899-aabb-ccddeeffaabb', 'Crimson Bridal Lehenga',
+               'https://images.unsplash.com/photo-1606791405792-1004f1718d0c?w=400&q=80',
+               4500000, 'INR', 'Bust 34in, Waist 26in, Hip 36in',
+               'Purchased for my wife''s reception. The quality exceeded all expectations. Worth every rupee.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0301'),
+               '88bbccdd-8899-aabb-ccdd-eeffaabbccdd', 'Milano Leather Belt',
+               'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&q=80',
+               280000, 'INR', '90cm / Size M',
+               'Excellent accessory. The brass buckle is beautifully weighted.',
+               4, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0302 : Julian — Kanjivaram Saree + Cashmere Scarf ─────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0302'),
+               '44ddeeff-4455-6677-8899-aabbccddeeff', 'Heritage Kanjivaram Saree',
+               'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&q=80',
+               1500000, 'INR', 'Standard / Free Size (6 yards)',
+               'An anniversary gift. My wife was moved to tears. The craftsmanship is unmatched.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0302'),
+               '99ccddee-99aa-bbcc-ddee-ffaabbccddee', 'Cashmere Cloud Scarf',
+               'https://images.unsplash.com/photo-1606760227091-3dd870d97f1d?w=400&q=80',
+               320000, 'INR', NULL,
+               'Perfectly complements the saree. Softness is remarkable.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0303 : Julian — Midnight Silk Maxi (Returned) ──────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0303'),
+               '11aabbcc-1122-3344-5566-778899aabbcc', 'Midnight Silk Maxi',
+               'https://images.unsplash.com/photo-1585487000160-6ebcfceb0d03?w=400&q=80',
+               890000, 'INR', 'Size S / EU 36 / Bust 34in',
+               'The fabric quality is exceptional but the cut did not suit my wife''s figure.',
+               3, 'Size runs smaller than expected. Requesting return — EU 36 fitted like XS.', true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0304 : Julian — Royal Banarasi Saree (Order Placed) ────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0304'),
+               '77aabbcc-7788-99aa-bbcc-ddeeffaabbcc', 'Royal Banarasi Bridal Saree',
+               'https://images.unsplash.com/photo-1583391733981-8498408ee4b6?w=400&q=80',
+               2800000, 'INR', 'Standard / Free Size (6 yards)',
+               NULL, NULL, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0401 : Sofia — Azure Blouse + Ivory Palazzo Set ────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0401'),
+               '22bbccdd-2233-4455-6677-8899aabbccdd', 'Azure Breezy Blouse',
+               'https://images.unsplash.com/photo-1564257631407-4deb1f99d992?w=400&q=80',
+               350000, 'INR', 'Size XS / Bust 32in',
+               'The colour is even more beautiful in person. Perfect for summer evenings in Milan.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0401'),
+               '33ccddee-3344-5566-7788-99aabbccddee', 'Ivory Palazzo Set',
+               'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400&q=80',
+               550000, 'INR', 'Size XS / Waist 24in',
+               'The embroidery is delicate and the fabric is very breathable. Loved the set.',
+               4, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0402 : Sofia — Cashmere Cloud Scarf ─────────────────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0402'),
+               '99ccddee-99aa-bbcc-ddee-ffaabbccddee', 'Cashmere Cloud Scarf',
+               'https://images.unsplash.com/photo-1606760227091-3dd870d97f1d?w=400&q=80',
+               320000, 'INR', NULL,
+               'Exactly what I was looking for. The ivory is very clean and sophisticated.',
+               4, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0403 : Sofia — Emerald Kurta Set (Cancelled) ─────────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0403'),
+               '55eeffaa-5566-7788-99aa-bbccddeeffaa', 'Emerald Kurta Set',
+               'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=400&q=80',
+               420000, 'INR', 'Size XS / Chest 32in',
+               NULL, NULL, 'Changed my mind — purchased a different style elsewhere.', true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0501 : Elena — Milano Belt + Azure Blouse ───────────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0501'),
+               '88bbccdd-8899-aabb-ccdd-eeffaabbccdd', 'Milano Leather Belt',
+               'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&q=80',
+               280000, 'INR', '80cm / Size XS',
+               'The quality speaks for itself. Minimalist and elegant — very Italian.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0501'),
+               '22bbccdd-2233-4455-6677-8899aabbccdd', 'Azure Breezy Blouse',
+               'https://images.unsplash.com/photo-1564257631407-4deb1f99d992?w=400&q=80',
+               350000, 'INR', 'Size XS / Bust 32in',
+               'This blouse is everything. The bishop sleeves are so flattering.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0501'),
+               '99ccddee-99aa-bbcc-ddee-ffaabbccddee', 'Cashmere Cloud Scarf',
+               'https://images.unsplash.com/photo-1606760227091-3dd870d97f1d?w=400&q=80',
+               140000, 'INR', NULL,
+               'Perfect for Barcelona evenings. Lightweight yet warm.',
+               4, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0502 : Elena — Classic Wool Trench ──────────────────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0502'),
+               'aaddeeaa-aabb-ccdd-eeff-aabbccddeeff', 'Classic Wool Trench',
+               'https://images.unsplash.com/photo-1548624313-0396c75e4b1a?w=400&q=80',
+               1200000, 'INR', 'Size XS / EU 34 / Chest 34in',
+               'The Scottish wool is divine. Structured yet incredibly comfortable.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0503 : Elena — Ivory Palazzo Set (In Transit) ───────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0503'),
+               '33ccddee-3344-5566-7788-99aabbccddee', 'Ivory Palazzo Set',
+               'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400&q=80',
+               550000, 'INR', 'Size XS / Waist 24in',
+               NULL, NULL, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0601 : Marcus — Milano Belt + Cashmere Scarf ─────────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0601'),
+               '88bbccdd-8899-aabb-ccdd-eeffaabbccdd', 'Milano Leather Belt',
+               'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&q=80',
+               280000, 'INR', '90cm / Size M',
+               'Great everyday belt. The leather has a beautiful patina after a few weeks of wear.',
+               4, NULL, true, false, NOW(), NOW()),
+
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0601'),
+               '99ccddee-99aa-bbcc-ddee-ffaabbccddee', 'Cashmere Cloud Scarf',
+               'https://images.unsplash.com/photo-1606760227091-3dd870d97f1d?w=400&q=80',
+               320000, 'INR', NULL,
+               'Incredibly versatile. Wore it on a Singapore Airlines flight and received compliments.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0601'),
+               '55eeffaa-5566-7788-99aa-bbccddeeffaa', 'Emerald Kurta Set',
+               'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=400&q=80',
+               100000, 'INR', 'Size M / Chest 40in',
+               'Great value for quality. The block print is unique.',
+               4, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0602 : Marcus — Classic Wool Trench ─────────────────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0602'),
+               'aaddeeaa-aabb-ccdd-eeff-aabbccddeeff', 'Classic Wool Trench',
+               'https://images.unsplash.com/photo-1548624313-0396c75e4b1a?w=400&q=80',
+               1200000, 'INR', 'Size M / EU 50 / Chest 40in',
+               'Perfect for Singapore''s air-conditioned offices and cool evenings. Tailoring is superb.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0603 : Marcus — Emerald Kurta Set (Order Placed) ─────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0603'),
+               '55eeffaa-5566-7788-99aa-bbccddeeffaa', 'Emerald Kurta Set',
+               'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=400&q=80',
+               420000, 'INR', 'Size M / Chest 40in',
+               NULL, NULL, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0701 : Oliver — Crimson Bridal Lehenga ──────────────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0701'),
+               '66ffaabb-6677-8899-aabb-ccddeeffaabb', 'Crimson Bridal Lehenga',
+               'https://images.unsplash.com/photo-1606791405792-1004f1718d0c?w=400&q=80',
+               4500000, 'INR', 'Bust 38in, Waist 32in, Hip 40in',
+               'Bought for my daughter''s wedding. The entire ceremony stopped when she walked in. Perfection.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0702 : Oliver — Royal Banarasi Bridal Saree ─────────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0702'),
+               '77aabbcc-7788-99aa-bbcc-ddeeffaabbcc', 'Royal Banarasi Bridal Saree',
+               'https://images.unsplash.com/photo-1583391733981-8498408ee4b6?w=400&q=80',
+               2800000, 'INR', 'Standard / Free Size (6 yards)',
+               'For my wife''s sister''s wedding. Absolutely regal — the meenakari work is extraordinary.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0703 : Oliver — Heritage Kanjivaram + Cashmere Scarf ─────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0703'),
+               '44ddeeff-4455-6677-8899-aabbccddeeff', 'Heritage Kanjivaram Saree',
+               'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=400&q=80',
+               1500000, 'INR', 'Standard / Free Size (6 yards)',
+               'Anniversary gift. My wife treasures this more than anything we own.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0703'),
+               '99ccddee-99aa-bbcc-ddee-ffaabbccddee', 'Cashmere Cloud Scarf',
+               'https://images.unsplash.com/photo-1606760227091-3dd870d97f1d?w=400&q=80',
+               320000, 'INR', NULL,
+               'Added to the saree as a gift. The ivory tone is perfect.',
+               5, NULL, true, false, NOW(), NOW()),
+
+              -- ── ORD-2026-0704 : Oliver — Classic Wool Trench (In Transit) ─────────
+              (gen_random_uuid(),
+               (SELECT id FROM customer_order WHERE order_code = 'ORD-2026-0704'),
+               'aaddeeaa-aabb-ccdd-eeff-aabbccddeeff', 'Classic Wool Trench',
+               'https://images.unsplash.com/photo-1548624313-0396c75e4b1a?w=400&q=80',
+               1200000, 'INR', 'Size XL / EU 54 / Chest 44in',
+               NULL, NULL, NULL, true, false, NOW(), NOW())
+
+              ON CONFLICT (uuid) DO NOTHING;

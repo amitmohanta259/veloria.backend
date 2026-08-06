@@ -1,0 +1,38 @@
+databaseChangeLog:
+  - changeSet:
+      id: add_dimensions_to_inventory_product
+      author: admin
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE inventory_product ADD COLUMN IF NOT EXISTS dimensions VARCHAR(255);
+
+              UPDATE inventory_product SET dimensions = 'XS, S, M, L, XL'
+              WHERE uuid = '11aabbcc-1122-3344-5566-778899aabbcc';
+
+              UPDATE inventory_product SET dimensions = 'XS, S, M, L, XL'
+              WHERE uuid = '22bbccdd-2233-4455-6677-8899aabbccdd';
+
+              UPDATE inventory_product SET dimensions = 'S, M, L, XL'
+              WHERE uuid = '33ccddee-3344-5566-7788-99aabbccddee';
+
+              UPDATE inventory_product SET dimensions = '6 Yards'
+              WHERE uuid = '44ddeeff-4455-6677-8899-aabbccddeeff';
+
+              UPDATE inventory_product SET dimensions = 'S, M, L, XL, XXL'
+              WHERE uuid = '55eeffaa-5566-7788-99aa-bbccddeeffaa';
+
+              UPDATE inventory_product SET dimensions = 'Custom Tailoring (XS–XXL)'
+              WHERE uuid = '66ffaabb-6677-8899-aabb-ccddeeffaabb';
+
+              UPDATE inventory_product SET dimensions = '6 Yards'
+              WHERE uuid = '77aabbcc-7788-99aa-bbcc-ddeeffaabbcc';
+
+              UPDATE inventory_product SET dimensions = '70 cm – 120 cm'
+              WHERE uuid = '88bbccdd-8899-aabb-ccdd-eeffaabbccdd';
+
+              UPDATE inventory_product SET dimensions = '180 × 70 cm'
+              WHERE uuid = '99ccddee-99aa-bbcc-ddee-ffaabbccddee';
+
+              UPDATE inventory_product SET dimensions = 'XS, S, M, L, XL, XXL'
+              WHERE uuid = 'aaddeeaa-aabb-ccdd-eeff-aabbccddeeff';

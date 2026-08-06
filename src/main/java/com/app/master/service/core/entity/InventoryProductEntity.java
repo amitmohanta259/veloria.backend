@@ -3,6 +3,7 @@ package com.app.master.service.core.entity;
 import com.app.master.service.core.dto.Base;
 import com.app.master.service.core.dto.InventoryProduct;
 import com.app.master.service.core.enums.InventoryCurrency;
+import com.app.master.service.core.enums.InventoryGender;
 import com.app.master.service.core.enums.InventoryVisibility;
 import jakarta.persistence.*;
 import lombok.*;
@@ -32,6 +33,7 @@ public class InventoryProductEntity extends Base {
     private String description;
     private String skuId;
     private Long price;
+    private String dimensions;
 
     @Enumerated(EnumType.STRING)
     private InventoryCurrency priceCurrency;
@@ -43,6 +45,9 @@ public class InventoryProductEntity extends Base {
 
     private Instant visibilityDate;
     private Boolean draft;
+
+    @Enumerated(EnumType.STRING)
+    private InventoryGender gender;
 
     @Builder.Default
     private Boolean active = Boolean.TRUE;
@@ -61,6 +66,8 @@ public class InventoryProductEntity extends Base {
                 .initialStock(this.initialStock)
                 .visibility(this.visibility)
                 .draft(this.draft)
+                .gender(this.gender)
+                .dimensions(this.dimensions)
                 .build();
     }
 

@@ -71,19 +71,33 @@ public class InventoryCollectionServiceImpl extends AppService implements Invent
         InventoryCollectionEntity existing = repository.findByUuid(uuid)
                 .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid inventory collection uuid"));
 
-        return existing.toDto();
+        InventoryCollection dto = existing.toDto();
+        if (existing.getCategoryId() != null) {
+            categoryRepository.findById(existing.getCategoryId())
+                    .ifPresent(cat -> dto.setCategoryUuid(cat.getUuid()));
+        }
+        return dto;
     }
 
     @Override
     public Page<InventoryCollectionAllResponse> allInventoryCollection(int page, int pageSize, String search, UUID categoryUuid) throws VeloriaException {
 
-        categoryRepository.findByUuid(categoryUuid)
-                .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid inventory category uuid"));
+        if (categoryUuid != null) {
+            categoryRepository.findByUuid(categoryUuid)
+                    .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid inventory category uuid"));
+        }
 
         Pageable pageable = PageRequest.of(page, pageSize);
         search = Strings.isNullOrEmpty(search) ? null : search.toLowerCase();
 
         return repository.allInventoryCollection(categoryUuid, search, pageable);
+    }
+
+    @Override
+    public java.util.List<InventoryCollectionAllResponse> listAllInventoryCollection(UUID categoryUuid) throws VeloriaException {
+        return categoryUuid != null
+                ? repository.listAllInventoryCollectionByCategory(categoryUuid)
+                : repository.listAllInventoryCollection();
     }
 
     @Override

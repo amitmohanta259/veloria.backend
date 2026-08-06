@@ -13,11 +13,20 @@ public class InventoryCollectionAllResponse {
     private String name;
     private String description;
     private Boolean active;
+    private String parentName;
 
     public InventoryCollectionAllResponse(UUID uuid, String name, String description, Boolean active) {
         this.uuid = uuid;
         this.name = name;
         this.description = description;
         this.active = active;
+    }
+
+    public InventoryCollectionAllResponse(UUID uuid, String name, String description, Boolean active, String parentName) {
+        this.uuid = uuid;
+        this.name = name;
+        this.description = description;
+        this.active = active;
+        this.parentName = parentName;
     }
 }

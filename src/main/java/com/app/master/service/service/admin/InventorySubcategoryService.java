@@ -5,6 +5,7 @@ import com.app.master.service.core.exception.VeloriaException;
 import com.app.master.service.core.response.admin.InventoryCollectionAllResponse;
 import org.springframework.data.domain.Page;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface InventorySubcategoryService {
@@ -16,6 +17,8 @@ public interface InventorySubcategoryService {
     InventorySubCategory byUuidInventorySubCategory(UUID uuid) throws VeloriaException;
 
     Page<InventoryCollectionAllResponse> allInventorySubCategory(int page, int pageSize, String search, UUID collectionUuid) throws VeloriaException;
+
+    List<InventoryCollectionAllResponse> listAllInventorySubCategory(UUID collectionUuid) throws VeloriaException;
 
     void deleteInventorySubCategory(UUID uuid) throws VeloriaException;
 

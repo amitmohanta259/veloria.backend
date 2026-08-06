@@ -71,7 +71,12 @@ public class InventorySubcategoryServiceImpl extends AppService implements Inven
         InventorySubCategoryEntity existing = repository.findByUuid(uuid)
                 .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid sub-category uuid"));
 
-        return existing.toDto();
+        InventorySubCategory dto = existing.toDto();
+        if (existing.getCollectionId() != null) {
+            collectionRepository.findById(existing.getCollectionId())
+                    .ifPresent(col -> dto.setCollectionUuid(col.getUuid()));
+        }
+        return dto;
     }
 
     @Override
@@ -81,6 +86,13 @@ public class InventorySubcategoryServiceImpl extends AppService implements Inven
         search = Strings.isNullOrEmpty(search) ? null : search.toLowerCase();
 
         return repository.allInventorySubCategory(collectionUuid, search, pageable);
+    }
+
+    @Override
+    public java.util.List<InventoryCollectionAllResponse> listAllInventorySubCategory(UUID collectionUuid) throws VeloriaException {
+        return collectionUuid != null
+                ? repository.listAllInventorySubCategoryByCollection(collectionUuid)
+                : repository.listAllInventorySubCategory();
     }
 
     @Override

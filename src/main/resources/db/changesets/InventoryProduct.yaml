@@ -68,6 +68,16 @@ databaseChangeLog:
                   name: modified_by
                   type: varchar(255)
   - changeSet:
+      id: add_gender_to_inventory_product
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: inventory_product
+            columns:
+              - column:
+                  name: gender
+                  type: varchar(20)
+  - changeSet:
       id: add_index_inventory_product_sub_category_id
       author: veloria-perf
       changes:

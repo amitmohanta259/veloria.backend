@@ -1,0 +1,116 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_purchase_order_table
+      author: admin
+      changes:
+        - createTable:
+            tableName: purchase_order
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: uuid
+                  type: uuid
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: po_code
+                  type: varchar(50)
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: supplier_uuid
+                  type: uuid
+              - column:
+                  name: status
+                  type: varchar(50)
+              - column:
+                  name: total_value
+                  type: bigint
+              - column:
+                  name: currency
+                  type: varchar(20)
+              - column:
+                  name: payment_terms
+                  type: varchar(100)
+              - column:
+                  name: notes
+                  type: text
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+              - column:
+                  name: archive
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: created
+                  type: timestamp
+              - column:
+                  name: modified
+                  type: timestamp
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: modified_by
+                  type: varchar(255)
+
+  - changeSet:
+      id: create_purchase_order_item_table
+      author: admin
+      changes:
+        - createTable:
+            tableName: purchase_order_item
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: uuid
+                  type: uuid
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: purchase_order_id
+                  type: bigint
+              - column:
+                  name: product_name
+                  type: varchar(255)
+              - column:
+                  name: sku_id
+                  type: varchar(100)
+              - column:
+                  name: unit_cost
+                  type: bigint
+              - column:
+                  name: quantity
+                  type: integer
+              - column:
+                  name: line_total
+                  type: bigint
+              - column:
+                  name: created
+                  type: timestamp
+              - column:
+                  name: modified
+                  type: timestamp
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: modified_by
+                  type: varchar(255)

@@ -7,6 +7,9 @@ import com.app.master.service.core.entity.InventorySubCategoryEntity;
 import com.app.master.service.core.exception.VeloriaException;
 import com.app.master.service.core.response.ResponseCode;
 import com.app.master.service.core.response.admin.InventoryProductListResponse;
+import com.app.master.service.core.response.admin.InventoryStatsResponse;
+import com.app.master.service.core.response.admin.PerformanceLedgerResponse;
+import com.app.master.service.core.response.admin.TopSellerItemResponse;
 import com.app.master.service.core.service.AppService;
 import com.app.master.service.core.service.AwsService;
 import com.app.master.service.repository.admin.InventoryProductImagesRepository;
@@ -66,9 +69,11 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
                 .price(product.getPrice())
                 .priceCurrency(product.getPriceCurrency())
                 .initialStock(product.getInitialStock())
-                .visibility(product.getVisibility() != null ? product.getVisibility() : null)
+                .visibility(product.getVisibility())
                 .visibilityDate(Instant.now())
-                .draft(product.getDraft())
+                .draft(product.getDraft() != null ? product.getDraft() : Boolean.TRUE)
+                .gender(product.getGender())
+                .dimensions(product.getDimensions())
                 .build();
 
         productRepository.save(entity);
@@ -90,6 +95,8 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
         existing.setVisibility(product.getVisibility());
         existing.setVisibilityDate(Instant.now());
         existing.setDraft(product.getDraft());
+        existing.setGender(product.getGender());
+        existing.setDimensions(product.getDimensions());
 
         productRepository.save(existing);
         uploadProductImages(existing.getId(), getSubCategoryName(existing.getSubCategoryId()), images, product.getName());
@@ -131,13 +138,17 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
     @Override
     public Page<InventoryProductListResponse> getInventoryProductList(UUID subCategoryUuid, int page, int pageSize, String search) throws VeloriaException {
 
-        subCategoryRepository.findByUuid(subCategoryUuid)
-                .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid sub-category uuid"));
+        if (subCategoryUuid != null) {
+            subCategoryRepository.findByUuid(subCategoryUuid)
+                    .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid sub-category uuid"));
+        }
 
         Pageable pageable = PageRequest.of(page, pageSize);
         search = Strings.isNullOrEmpty(search) ? null : search.toLowerCase();
 
-        Page<InventoryProductListResponse> responses = productRepository.getInventoryProductList(subCategoryUuid, search, pageable);
+        Page<InventoryProductListResponse> responses = subCategoryUuid != null
+                ? productRepository.getInventoryProductListBySubCategory(subCategoryUuid, search, pageable)
+                : productRepository.getInventoryProductList(search, pageable);
         attachPresignedImages(responses.getContent());
         return responses;
     }
@@ -206,6 +217,84 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
             }
         }
         imagesRepository.saveAll(imageEntities);
+    }
+
+    @Override
+    public List<PerformanceLedgerResponse> getPerformanceLedger() throws VeloriaException {
+        return productRepository.findPerformanceLedger().stream()
+                .map(this::rowToLedger)
+                .collect(Collectors.toList());
+    }
+
+    private PerformanceLedgerResponse rowToLedger(Object[] row) {
+        String category    = (String) row[0];
+        String collection  = (String) row[1];
+        String subCategory = (String) row[2];
+        String productName = (String) row[3];
+        UUID   productUuid = (UUID)   row[4];
+        long   sales       = row[5] instanceof Long l ? l : ((Number) row[5]).longValue();
+        long   returns     = row[6] instanceof Long l ? l : ((Number) row[6]).longValue();
+        long   intent      = row[7] instanceof Long l ? l : ((Number) row[7]).longValue();
+        double conversion  = row[8] instanceof Double d ? d : ((Number) row[8]).doubleValue();
+
+        return PerformanceLedgerResponse.builder()
+                .productUuid(productUuid)
+                .category(category)
+                .collection(collection)
+                .subCategory(subCategory)
+                .productName(productName)
+                .sales(sales)
+                .returns(returns)
+                .intent(intent)
+                .conversion(conversion)
+                .build();
+    }
+
+    @Override
+    public InventoryStatsResponse getInventoryStats() throws VeloriaException {
+        List<Object[]> statsList = productRepository.findInventoryStats();
+        List<Object[]> topCatList = productRepository.findTopCategory();
+
+        Object[] stats  = statsList.isEmpty()  ? new Object[]{0L, "INR", 0L, 0L} : statsList.get(0);
+        Object[] topCat = topCatList.isEmpty() ? null : topCatList.get(0);
+
+        long totalStockValue = stats[0] instanceof Long l ? l : ((Number) stats[0]).longValue();
+        String currency      = (String) stats[1];
+        long lowStock        = stats[2] instanceof Long l ? l : ((Number) stats[2]).longValue();
+        long outOfStock      = stats[3] instanceof Long l ? l : ((Number) stats[3]).longValue();
+
+        String topCategory   = topCat != null && topCat.length > 0 ? (String) topCat[0] : "—";
+        double topShare      = topCat != null && topCat.length > 2
+                ? (topCat[2] instanceof Double d ? d : ((Number) topCat[2]).doubleValue()) : 0.0;
+
+        return InventoryStatsResponse.builder()
+                .totalStockValue(totalStockValue)
+                .currency(currency)
+                .lowOnStockCount(lowStock)
+                .outOfStockCount(outOfStock)
+                .topCategory(topCategory)
+                .topCategoryShare(topShare)
+                .build();
+    }
+
+    @Override
+    public List<TopSellerItemResponse> getTopSellers(String period) throws VeloriaException {
+        List<Object[]> rows = switch (period) {
+            case "quarterly" -> productRepository.findTopSellersQuarterly();
+            case "annual"    -> productRepository.findTopSellersAnnual();
+            default          -> productRepository.findTopSellersMonthly();
+        };
+        return rows.stream().map(row -> {
+            String name       = (String) row[0];
+            String currency   = (String) row[1];
+            long   salesCount = row[2] instanceof Long l ? l : ((Number) row[2]).longValue();
+            long   revenue    = row[3] instanceof Long l ? l : ((Number) row[3]).longValue();
+            String imageUrl   = (String) row[4];
+            return TopSellerItemResponse.builder()
+                    .name(name).salesCount(salesCount).totalRevenue(revenue)
+                    .currency(currency).imageUrl(imageUrl)
+                    .build();
+        }).toList();
     }
 
     private String getSubCategoryName(Long subCategoryId) throws VeloriaException {

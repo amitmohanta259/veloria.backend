@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: add_selected_dimension_to_customer_order_item
+      author: admin
+      changes:
+        - addColumn:
+            tableName: customer_order_item
+            columns:
+              - column:
+                  name: selected_dimension
+                  type: varchar(100)

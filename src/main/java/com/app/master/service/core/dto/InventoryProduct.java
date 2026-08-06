@@ -1,6 +1,7 @@
 package com.app.master.service.core.dto;
 
 import com.app.master.service.core.enums.InventoryCurrency;
+import com.app.master.service.core.enums.InventoryGender;
 import com.app.master.service.core.enums.InventoryVisibility;
 import lombok.*;
 
@@ -22,4 +23,6 @@ public class InventoryProduct {
     private Long initialStock;
     private InventoryVisibility visibility;
     private Boolean draft;
+    private InventoryGender gender;
+    private String dimensions;
 }

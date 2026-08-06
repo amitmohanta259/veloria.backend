@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,5 +32,28 @@ public interface InventorySubCategoryRepository extends JpaRepository<InventoryS
             AND (:search IS NULL OR LOWER(isc.name) LIKE :search OR LOWER(isc.description) LIKE :search)
             """)
     Page<InventoryCollectionAllResponse> allInventorySubCategory(@Param("collectionUuid") UUID collectionUuid, @Param("search") String search, Pageable pageable);
+
+    @Query(value = """
+            SELECT new com.app.master.service.core.response.admin.InventoryCollectionAllResponse(
+            isc.uuid, isc.name, isc.description, isc.active, i.name
+            )
+            FROM InventorySubCategoryEntity isc
+            LEFT JOIN InventoryCollectionEntity i ON i.id = isc.collectionId
+            WHERE isc.archive = false
+            ORDER BY isc.name ASC
+            """)
+    List<InventoryCollectionAllResponse> listAllInventorySubCategory();
+
+    @Query(value = """
+            SELECT new com.app.master.service.core.response.admin.InventoryCollectionAllResponse(
+            isc.uuid, isc.name, isc.description, isc.active, i.name
+            )
+            FROM InventorySubCategoryEntity isc
+            JOIN InventoryCollectionEntity i ON i.id = isc.collectionId
+            WHERE isc.archive = false
+            AND i.uuid = :collectionUuid
+            ORDER BY isc.name ASC
+            """)
+    List<InventoryCollectionAllResponse> listAllInventorySubCategoryByCollection(@Param("collectionUuid") UUID collectionUuid);
 
 }

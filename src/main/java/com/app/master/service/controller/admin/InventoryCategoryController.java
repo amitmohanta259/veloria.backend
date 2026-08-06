@@ -50,6 +50,11 @@ public class InventoryCategoryController extends AppController {
         return data(ResponseCode.FETCHED, "Inventory category list fetched successfully", service.allInventoryCategory(page, pageSize, search));
     }
 
+    @GetMapping("/list")
+    public ResponseEntity<Response> listAllInventoryCategory() throws VeloriaException {
+        return data(ResponseCode.FETCHED, "Inventory category list fetched successfully", service.listAllInventoryCategory());
+    }
+
     @DeleteMapping("/{uuid}")
     public ResponseEntity<Response> deleteInventoryCategory(@PathVariable UUID uuid) throws VeloriaException {
 

@@ -3,6 +3,9 @@ package com.app.master.service.service.admin;
 import com.app.master.service.core.dto.InventoryProduct;
 import com.app.master.service.core.exception.VeloriaException;
 import com.app.master.service.core.response.admin.InventoryProductListResponse;
+import com.app.master.service.core.response.admin.InventoryStatsResponse;
+import com.app.master.service.core.response.admin.PerformanceLedgerResponse;
+import com.app.master.service.core.response.admin.TopSellerItemResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,4 +26,9 @@ public interface InventoryProductService {
 
     Page<InventoryProductListResponse> getInventoryProductList(UUID subCategoryUuid, int page, int pageSize, String search) throws VeloriaException;
 
+    List<PerformanceLedgerResponse> getPerformanceLedger() throws VeloriaException;
+
+    InventoryStatsResponse getInventoryStats() throws VeloriaException;
+
+    List<TopSellerItemResponse> getTopSellers(String period) throws VeloriaException;
 }

@@ -25,3 +25,29 @@ databaseChangeLog:
       file: db/changesets/StaffResidency.yaml
   - include:
       file: db/changesets/SearchIndexes.yaml
+  - include:
+      file: db/changesets/InventorySeed.yaml
+  - include:
+      file: db/changesets/InventoryProductDimensions.yaml
+  - include:
+      file: db/changesets/Supplier.yaml
+  - include:
+      file: db/changesets/PurchaseOrder.yaml
+  - include:
+      file: db/changesets/SupplierSeed.yaml
+  - include:
+      file: db/changesets/SalesOrder.yaml
+  - include:
+      file: db/changesets/SalesOrderSeed.yaml
+  - include:
+      file: db/changesets/CustomerOrder.yaml
+  - include:
+      file: db/changesets/CustomerOrderSeed.yaml
+  - include:
+      file: db/changesets/CustomerOrderSeedMulti.yaml
+  - include:
+      file: db/changesets/CleanCustomerOrderItem.yaml
+  - include:
+      file: db/changesets/ProductIntent.yaml
+  - include:
+      file: db/changesets/CustomerOrderItemDimension.yaml
