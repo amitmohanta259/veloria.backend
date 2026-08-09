@@ -61,11 +61,11 @@ springdoc:
   show-actuator: false
 
 aws:
-  access-key: ${AWS_ACCESS_KEY:dummy-access-key}
-  secret-key: ${AWS_SECRET_KEY:dummy-secret-key}
-  region: us-east-1
+  access-key: ${AWS_ACCESS_KEY}
+  secret-key: ${AWS_SECRET_KEY}
+  region: us-east-2
   s3:
-    bucket-name: ${AWS_S3_BUCKET_NAME:bucket-name}
+    bucket-name: ${AWS_S3_BUCKET_NAME:veloria-image}
   iam:
     access-key: ${AWS_IAM_ACCESS_KEY:dummy-access-key}
     secret-key: ${AWS_IAM_SECRET_KEY:dummy-secret-key}
