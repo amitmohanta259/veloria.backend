@@ -18,6 +18,9 @@ public interface StaffRepository extends JpaRepository<StaffEntity, Long> {
 
     Optional<StaffEntity> findByUuid(UUID uuid);
 
+    long countByArchiveFalse();
+    long countByArchiveFalseAndActive(boolean active);
+
     @Query("""
             SELECT new com.app.master.service.core.response.admin.StaffListResponse(
                 s.uuid, s.avatar, s.name, s.department, s.designation, s.workEmail, s.phone,

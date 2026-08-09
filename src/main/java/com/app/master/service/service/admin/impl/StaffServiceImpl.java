@@ -434,4 +434,12 @@ public class StaffServiceImpl extends AppService implements StaffService {
     private static <T> List<T> orEmpty(List<T> list) {
         return list == null ? Collections.emptyList() : list;
     }
+
+    @Override
+    public Map<String, Long> getStaffStats() {
+        long total = staffRepository.countByArchiveFalse();
+        long active = staffRepository.countByArchiveFalseAndActive(true);
+        long inactive = staffRepository.countByArchiveFalseAndActive(false);
+        return Map.of("total", total, "active", active, "inactive", inactive);
+    }
 }

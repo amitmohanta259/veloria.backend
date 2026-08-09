@@ -30,4 +30,6 @@ public interface StaffService {
     boolean toggleStaffActive(UUID staffUuid) throws VeloriaException;
 
     void archiveStaff(UUID staffUuid) throws VeloriaException;
+
+    Map<String, Long> getStaffStats();
 }

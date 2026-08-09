@@ -78,4 +78,9 @@ public class StaffController extends AppController {
         staffService.archiveStaff(staffUuid);
         return success(ResponseCode.DELETED, "Staff archived successfully", null);
     }
+
+    @GetMapping("/stats")
+    public ResponseEntity<Response> getStaffStats() {
+        return success(ResponseCode.FETCHED, "Staff stats retrieved", staffService.getStaffStats());
+    }
 }
