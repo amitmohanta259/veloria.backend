@@ -13,6 +13,7 @@ public class StaffListResponse {
 
     private UUID uuid;
     private String avatarUrl;
+    private String name;
     private StaffDepartment department;
     private String designation;
     private String workEmail;
@@ -21,11 +22,12 @@ public class StaffListResponse {
     private LocalDate resignDate;
     private Boolean active;
 
-    public StaffListResponse(UUID uuid, String avatarUrl, StaffDepartment department, String designation,
+    public StaffListResponse(UUID uuid, String avatarUrl, String name, StaffDepartment department, String designation,
                              String workEmail, String phone, LocalDate joiningDate, LocalDate resignDate,
                              Boolean active) {
         this.uuid = uuid;
         this.avatarUrl = avatarUrl;
+        this.name = name;
         this.department = department;
         this.designation = designation;
         this.workEmail = workEmail;

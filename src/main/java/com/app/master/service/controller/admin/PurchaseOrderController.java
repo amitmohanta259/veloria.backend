@@ -8,7 +8,9 @@ import com.app.master.service.core.response.ResponseCode;
 import com.app.master.service.service.admin.PurchaseOrderService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -36,5 +38,24 @@ public class PurchaseOrderController extends AppController {
     @GetMapping("/by-supplier/{supplierUuid}")
     public ResponseEntity<Response> listBySupplier(@PathVariable UUID supplierUuid) throws VeloriaException {
         return data(ResponseCode.FETCHED, "Purchase orders fetched successfully", service.listBySupplier(supplierUuid));
+    }
+
+    @GetMapping("/all")
+    public ResponseEntity<Response> listAll() throws VeloriaException {
+        return data(ResponseCode.FETCHED, "Purchase orders fetched successfully", service.listAll());
+    }
+
+    @PatchMapping("/{uuid}/status")
+    public ResponseEntity<Response> updateStatus(@PathVariable UUID uuid, @RequestBody Map<String, String> body) throws VeloriaException {
+        service.updateStatus(uuid, body.get("status"));
+        return data(ResponseCode.UPDATED, "Purchase order status updated", null);
+    }
+
+    @PostMapping("/{uuid}/invoice")
+    public ResponseEntity<Response> uploadInvoice(
+            @PathVariable UUID uuid,
+            @RequestParam("file") MultipartFile file) throws VeloriaException {
+        String invoiceUrl = service.uploadInvoice(uuid, file);
+        return data(ResponseCode.UPLOADED, "Invoice uploaded successfully", invoiceUrl);
     }
 }

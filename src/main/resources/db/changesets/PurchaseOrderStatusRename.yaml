@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: rename_po_status_confirmed_to_in_progress
+      author: admin
+      changes:
+        - sql:
+            sql: |
+              UPDATE purchase_order SET status = 'IN_PROGRESS' WHERE status = 'CONFIRMED';
+              UPDATE purchase_order SET status = 'REJECTED' WHERE status = 'DECLINED';

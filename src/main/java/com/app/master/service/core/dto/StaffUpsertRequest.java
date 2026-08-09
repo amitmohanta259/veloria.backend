@@ -14,6 +14,7 @@ import java.util.List;
 public class StaffUpsertRequest {
 
     private String avatarUrl;
+    private String name;
 
     private StaffDepartment department;
     private String designation;

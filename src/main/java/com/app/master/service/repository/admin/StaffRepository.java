@@ -20,12 +20,13 @@ public interface StaffRepository extends JpaRepository<StaffEntity, Long> {
 
     @Query("""
             SELECT new com.app.master.service.core.response.admin.StaffListResponse(
-                s.uuid, s.avatar, s.department, s.designation, s.workEmail, s.phone,
+                s.uuid, s.avatar, s.name, s.department, s.designation, s.workEmail, s.phone,
                 s.joiningDate, s.resignDate, s.active
             )
             FROM StaffEntity s
             WHERE s.archive = false
             AND (:search IS NULL
+                 OR LOWER(s.name) LIKE CONCAT('%', LOWER(:search), '%')
                  OR LOWER(s.designation) LIKE CONCAT('%', LOWER(:search), '%')
                  OR LOWER(s.workEmail) LIKE CONCAT('%', LOWER(:search), '%'))
             AND (:department IS NULL OR s.department = :department)

@@ -30,8 +30,8 @@ public class SupplierServiceImpl extends AppService implements SupplierService {
 
     @Override
     public void createSupplier(Supplier supplier) throws VeloriaException {
-        long count = repository.countByArchiveFalse();
-        String code = String.format("SUP-%04d", count + 1);
+        int next = repository.findMaxSupplierCodeNumber().orElse(0) + 1;
+        String code = String.format("SUP-%04d", next);
 
         SupplierEntity entity = SupplierEntity.builder()
                 .supplierCode(code)
@@ -141,7 +141,6 @@ public class SupplierServiceImpl extends AppService implements SupplierService {
     public void deleteSupplier(UUID uuid) throws VeloriaException {
         SupplierEntity existing = repository.findByUuid(uuid)
                 .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid supplier uuid"));
-        existing.setArchive(true);
         existing.setStatus("TERMINATED");
         existing.setActive(false);
         existing.setModified(Instant.now());
@@ -153,7 +152,7 @@ public class SupplierServiceImpl extends AppService implements SupplierService {
         long total = repository.countByArchiveFalse();
         long active = repository.countByStatusAndArchiveFalse("ACTIVE");
         long pending = repository.countByStatusAndArchiveFalse("PENDING");
-        long terminated = repository.countByStatusAndArchiveFalse("TERMINATED");
+        long terminated = repository.countByStatus("TERMINATED");
         return SupplierStatsResponse.builder()
                 .totalPartners(total)
                 .activeContracts(active)

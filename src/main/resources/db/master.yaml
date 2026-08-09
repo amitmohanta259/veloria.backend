@@ -51,3 +51,11 @@ databaseChangeLog:
       file: db/changesets/ProductIntent.yaml
   - include:
       file: db/changesets/CustomerOrderItemDimension.yaml
+  - include:
+      file: db/changesets/InventoryProductSupplier.yaml
+  - include:
+      file: db/changesets/PurchaseOrderInvoice.yaml
+  - include:
+      file: db/changesets/PurchaseOrderStatusRename.yaml
+  - include:
+      file: db/changesets/StaffAddName.yaml

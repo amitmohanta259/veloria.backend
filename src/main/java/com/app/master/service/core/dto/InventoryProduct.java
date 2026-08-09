@@ -25,4 +25,5 @@ public class InventoryProduct {
     private Boolean draft;
     private InventoryGender gender;
     private String dimensions;
+    private UUID supplierUuid;
 }

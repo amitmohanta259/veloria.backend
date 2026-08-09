@@ -22,6 +22,9 @@ public interface SupplierRepository extends JpaRepository<SupplierEntity, Long> 
 
     long countByStatusAndArchiveFalse(String status);
 
+    @Query("SELECT MAX(CAST(SUBSTRING(s.supplierCode, 5) AS int)) FROM SupplierEntity s WHERE s.supplierCode LIKE 'SUP-%'")
+    Optional<Integer> findMaxSupplierCodeNumber();
+
     @Query("""
             SELECT new com.app.master.service.core.response.admin.SupplierListResponse(
                 s.uuid, s.supplierCode, s.name, s.gstn,
@@ -33,8 +36,8 @@ public interface SupplierRepository extends JpaRepository<SupplierEntity, Long> 
                    OR LOWER(s.gstn) LIKE LOWER(CONCAT('%', :search, '%'))
                    OR LOWER(s.supplierCode) LIKE LOWER(CONCAT('%', :search, '%')))
             AND (:category IS NULL OR s.category = :category)
-            AND s.archive = false
-            ORDER BY s.name ASC
+            AND (s.archive = false OR s.status = 'TERMINATED')
+            ORDER BY s.created DESC
             """)
     Page<SupplierListResponse> allSuppliers(@Param("search") String search,
                                              @Param("category") String category,
@@ -46,8 +49,10 @@ public interface SupplierRepository extends JpaRepository<SupplierEntity, Long> 
                 s.category, s.country, s.city, s.status
             )
             FROM SupplierEntity s
-            WHERE s.archive = false
-            ORDER BY s.name ASC
+            WHERE (s.archive = false OR s.status = 'TERMINATED')
+            ORDER BY s.created DESC
             """)
     List<SupplierListResponse> listAllSuppliers();
+
+    long countByStatus(String status);
 }

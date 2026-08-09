@@ -31,6 +31,8 @@ public class PurchaseOrderEntity extends Base {
     private String paymentTerms;
     private String notes;
 
+    private String invoiceUrl;
+
     @Builder.Default
     private Boolean active = Boolean.TRUE;
 

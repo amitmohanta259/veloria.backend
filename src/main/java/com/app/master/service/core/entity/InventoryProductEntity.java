@@ -49,6 +49,8 @@ public class InventoryProductEntity extends Base {
     @Enumerated(EnumType.STRING)
     private InventoryGender gender;
 
+    private UUID supplierUuid;
+
     @Builder.Default
     private Boolean active = Boolean.TRUE;
 
@@ -68,6 +70,7 @@ public class InventoryProductEntity extends Base {
                 .draft(this.draft)
                 .gender(this.gender)
                 .dimensions(this.dimensions)
+                .supplierUuid(this.supplierUuid)
                 .build();
     }
 

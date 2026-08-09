@@ -74,6 +74,7 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
                 .draft(product.getDraft() != null ? product.getDraft() : Boolean.TRUE)
                 .gender(product.getGender())
                 .dimensions(product.getDimensions())
+                .supplierUuid(product.getSupplierUuid())
                 .build();
 
         productRepository.save(entity);
@@ -97,6 +98,7 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
         existing.setDraft(product.getDraft());
         existing.setGender(product.getGender());
         existing.setDimensions(product.getDimensions());
+        existing.setSupplierUuid(product.getSupplierUuid());
 
         productRepository.save(existing);
         uploadProductImages(existing.getId(), getSubCategoryName(existing.getSubCategoryId()), images, product.getName());

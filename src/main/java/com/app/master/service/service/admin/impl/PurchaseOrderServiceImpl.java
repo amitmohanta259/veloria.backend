@@ -15,7 +15,12 @@ import com.app.master.service.repository.admin.SupplierRepository;
 import com.app.master.service.service.admin.PurchaseOrderService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Year;
 import java.util.List;
 import java.util.UUID;
@@ -56,7 +61,7 @@ public class PurchaseOrderServiceImpl extends AppService implements PurchaseOrde
         PurchaseOrderEntity po = PurchaseOrderEntity.builder()
                 .poCode(poCode)
                 .supplierUuid(request.getSupplierUuid())
-                .status("CONFIRMED")
+                .status("IN_PROGRESS")
                 .totalValue(total)
                 .currency(request.getCurrency())
                 .paymentTerms(request.getPaymentTerms())
@@ -104,6 +109,47 @@ public class PurchaseOrderServiceImpl extends AppService implements PurchaseOrde
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public List<PurchaseOrderResponse> listAll() throws VeloriaException {
+        List<PurchaseOrderEntity> orders = repository.findByArchiveFalseOrderByCreatedDesc();
+        return orders.stream()
+                .map(po -> {
+                    List<PurchaseOrderItemEntity> items = itemRepository.findByPurchaseOrderIdOrderByIdAsc(po.getId());
+                    return buildResponse(po, items);
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void updateStatus(UUID uuid, String status) throws VeloriaException {
+        PurchaseOrderEntity po = repository.findByUuid(uuid)
+                .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid purchase order uuid"));
+        po.setStatus(status);
+        repository.save(po);
+    }
+
+    @Override
+    @Transactional
+    public String uploadInvoice(UUID uuid, MultipartFile file) throws VeloriaException {
+        PurchaseOrderEntity po = repository.findByUuid(uuid)
+                .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid purchase order uuid"));
+        try {
+            String uploadsDir = System.getProperty("user.dir") + "/uploads/invoices/";
+            Files.createDirectories(Paths.get(uploadsDir));
+            String filename = uuid + "_" + file.getOriginalFilename();
+            Path dest = Paths.get(uploadsDir + filename);
+            Files.write(dest, file.getBytes());
+            String invoiceUrl = "http://localhost:8081/invoices/" + filename;
+            po.setInvoiceUrl(invoiceUrl);
+            po.setStatus("DONE");
+            repository.save(po);
+            return invoiceUrl;
+        } catch (IOException e) {
+            throw new VeloriaException(ResponseCode.INTERNAL_ERROR, "Failed to save invoice file: " + e.getMessage());
+        }
+    }
+
     private PurchaseOrderResponse buildResponse(PurchaseOrderEntity po, List<PurchaseOrderItemEntity> items) {
         List<PurchaseOrderItemResponse> itemResponses = items.stream()
                 .map(item -> PurchaseOrderItemResponse.builder()
@@ -116,7 +162,7 @@ public class PurchaseOrderServiceImpl extends AppService implements PurchaseOrde
                         .build())
                 .collect(Collectors.toList());
 
-        return PurchaseOrderResponse.builder()
+        PurchaseOrderResponse.PurchaseOrderResponseBuilder builder = PurchaseOrderResponse.builder()
                 .uuid(po.getUuid())
                 .poCode(po.getPoCode())
                 .supplierUuid(po.getSupplierUuid())
@@ -125,8 +171,15 @@ public class PurchaseOrderServiceImpl extends AppService implements PurchaseOrde
                 .currency(po.getCurrency())
                 .paymentTerms(po.getPaymentTerms())
                 .notes(po.getNotes())
+                .invoiceUrl(po.getInvoiceUrl())
                 .created(po.getCreated() != null ? po.getCreated().toString() : null)
-                .items(itemResponses)
-                .build();
+                .items(itemResponses);
+
+        supplierRepository.findByUuid(po.getSupplierUuid()).ifPresent(s -> {
+            builder.supplierName(s.getName());
+            builder.supplierCode(s.getSupplierCode());
+        });
+
+        return builder.build();
     }
 }

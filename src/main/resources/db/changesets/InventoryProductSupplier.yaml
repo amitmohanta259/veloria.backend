@@ -1,0 +1,8 @@
+databaseChangeLog:
+  - changeSet:
+      id: add_supplier_uuid_to_inventory_product
+      author: admin
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE inventory_product ADD COLUMN IF NOT EXISTS supplier_uuid UUID;

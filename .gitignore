@@ -6,5 +6,9 @@ target/
 
 # Secrets
 application-local.yaml
+application-dev.yaml
+
+# Uploaded files
+uploads/
 *.env
 .keycloak-secret

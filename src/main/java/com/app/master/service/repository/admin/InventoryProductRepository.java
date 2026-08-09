@@ -23,7 +23,7 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
     @Query(value = """
             SELECT new com.app.master.service.core.response.admin.InventoryProductListResponse(
             ip.uuid, ip.name, ip.description, ip.skuId, ip.price, ip.priceCurrency,
-            ip.initialStock, ip.visibility, ip.gender, ip.active, ip.dimensions
+            ip.initialStock, ip.visibility, ip.gender, ip.active, ip.dimensions, ip.supplierUuid
             )
             FROM InventoryProductEntity ip
             WHERE ip.archive = false
@@ -36,7 +36,7 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
     @Query(value = """
             SELECT new com.app.master.service.core.response.admin.InventoryProductListResponse(
             ip.uuid, ip.name, ip.description, ip.skuId, ip.price, ip.priceCurrency,
-            ip.initialStock, ip.visibility, ip.gender, ip.active, ip.dimensions
+            ip.initialStock, ip.visibility, ip.gender, ip.active, ip.dimensions, ip.supplierUuid
             )
             FROM InventoryProductEntity ip
             JOIN InventorySubCategoryEntity isc ON isc.id = ip.subCategoryId

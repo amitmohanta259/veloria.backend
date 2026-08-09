@@ -24,11 +24,12 @@ public class InventoryProductListResponse {
     private InventoryGender gender;
     private Boolean activeStatus;
     private String dimensions;
+    private UUID supplierUuid;
     private List<String> images;
 
     public InventoryProductListResponse(UUID uuid, String name, String description, String skuId, Long price,
                                         InventoryCurrency priceCurrency, Long initialStock, InventoryVisibility visibility,
-                                        InventoryGender gender, Boolean activeStatus, String dimensions) {
+                                        InventoryGender gender, Boolean activeStatus, String dimensions, UUID supplierUuid) {
         this.uuid = uuid;
         this.name = name;
         this.description = description;
@@ -40,6 +41,7 @@ public class InventoryProductListResponse {
         this.gender = gender;
         this.activeStatus = activeStatus;
         this.dimensions = dimensions;
+        this.supplierUuid = supplierUuid;
     }
 
 }

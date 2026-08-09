@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: staff_add_name_column
+      author: amit
+      changes:
+        - addColumn:
+            tableName: staff
+            columns:
+              - column:
+                  name: name
+                  type: varchar(255)

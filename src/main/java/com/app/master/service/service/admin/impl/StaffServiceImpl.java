@@ -66,6 +66,7 @@ public class StaffServiceImpl extends AppService implements StaffService {
         validateResidency(request.getResidency());
 
         StaffEntity staff = StaffEntity.builder()
+                .name(request.getName())
                 .department(request.getDepartment())
                 .designation(request.getDesignation())
                 .workEmail(request.getWorkEmail())
@@ -91,6 +92,7 @@ public class StaffServiceImpl extends AppService implements StaffService {
         StaffEntity staff = staffRepository.findByUuid(staffUuid)
                 .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid staff uuid"));
 
+        staff.setName(request.getName());
         staff.setDepartment(request.getDepartment());
         staff.setDesignation(request.getDesignation());
         staff.setWorkEmail(request.getWorkEmail());
@@ -262,6 +264,7 @@ public class StaffServiceImpl extends AppService implements StaffService {
                 .uuid(staff.getUuid())
                 .avatarObjectKey(avatarKey)
                 .avatarPresignedUrl(presign(presignedUrls, avatarKey))
+                .name(staff.getName())
                 .department(staff.getDepartment())
                 .designation(staff.getDesignation())
                 .workEmail(staff.getWorkEmail())

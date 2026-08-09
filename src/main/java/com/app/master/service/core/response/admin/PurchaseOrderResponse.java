@@ -15,11 +15,14 @@ public class PurchaseOrderResponse {
     private UUID uuid;
     private String poCode;
     private UUID supplierUuid;
+    private String supplierName;
+    private String supplierCode;
     private String status;
     private Long totalValue;
     private String currency;
     private String paymentTerms;
     private String notes;
+    private String invoiceUrl;
     private String created;
     private List<PurchaseOrderItemResponse> items;
 }

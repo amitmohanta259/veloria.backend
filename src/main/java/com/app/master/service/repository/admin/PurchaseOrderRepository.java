@@ -14,4 +14,6 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrderEnti
     Optional<PurchaseOrderEntity> findByUuid(UUID uuid);
 
     List<PurchaseOrderEntity> findBySupplierUuidAndArchiveFalseOrderByCreatedDesc(UUID supplierUuid);
+
+    List<PurchaseOrderEntity> findByArchiveFalseOrderByCreatedDesc();
 }

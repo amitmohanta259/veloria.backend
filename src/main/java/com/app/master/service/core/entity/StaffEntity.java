@@ -26,6 +26,7 @@ public class StaffEntity extends Base {
     private UUID uuid = UUID.randomUUID();
 
     private String avatar;
+    private String name;
 
     @Enumerated(EnumType.STRING)
     private StaffDepartment department;

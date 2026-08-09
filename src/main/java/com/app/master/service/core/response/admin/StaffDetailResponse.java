@@ -17,6 +17,7 @@ public class StaffDetailResponse {
     private UUID uuid;
     private String avatarObjectKey;
     private String avatarPresignedUrl;
+    private String name;
     private StaffDepartment department;
     private String designation;
     private String workEmail;

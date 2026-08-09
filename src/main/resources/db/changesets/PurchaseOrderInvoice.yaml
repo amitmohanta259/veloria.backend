@@ -1,0 +1,8 @@
+databaseChangeLog:
+  - changeSet:
+      id: add_invoice_url_to_purchase_order
+      author: admin
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE purchase_order ADD COLUMN IF NOT EXISTS invoice_url TEXT;
