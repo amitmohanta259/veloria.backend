@@ -37,6 +37,12 @@ public class StaffController extends AppController {
                 staffService.createStaff(payload, avatar, educationFiles, familyLineageFiles, legalVerificationFiles));
     }
 
+    @PostMapping(value = "/create", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Response> createStaffJson(@RequestBody StaffUpsertRequest payload) throws VeloriaException {
+        return success(ResponseCode.CREATED, "Staff created successfully",
+                staffService.createStaff(payload, null, null, null, null));
+    }
+
     @PutMapping(value = "/update/{staffUuid}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Response> updateStaff(@PathVariable UUID staffUuid,
                                                 @RequestPart("payload") StaffUpsertRequest payload,
@@ -47,6 +53,13 @@ public class StaffController extends AppController {
 
         return success(ResponseCode.UPDATED, "Staff updated successfully",
                 staffService.updateStaff(staffUuid, payload, avatar, educationFiles, familyLineageFiles, legalVerificationFiles));
+    }
+
+    @PutMapping(value = "/update/{staffUuid}", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Response> updateStaffJson(@PathVariable UUID staffUuid,
+                                                    @RequestBody StaffUpsertRequest payload) throws VeloriaException {
+        return success(ResponseCode.UPDATED, "Staff updated successfully",
+                staffService.updateStaff(staffUuid, payload, null, null, null, null));
     }
 
     @GetMapping("/list")
