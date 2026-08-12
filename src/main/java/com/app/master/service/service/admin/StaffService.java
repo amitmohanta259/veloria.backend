@@ -32,4 +32,8 @@ public interface StaffService {
     void archiveStaff(UUID staffUuid) throws VeloriaException;
 
     Map<String, Long> getStaffStats();
+
+    Map<String, Object> uploadStaffDocument(UUID staffUuid, Long recordId, String type, String label, MultipartFile file) throws VeloriaException;
+
+    List<Map<String, Object>> getStaffDocuments(UUID staffUuid) throws VeloriaException;
 }

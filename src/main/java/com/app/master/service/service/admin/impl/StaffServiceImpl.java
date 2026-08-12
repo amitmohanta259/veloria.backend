@@ -10,6 +10,7 @@ import com.app.master.service.core.response.admin.StaffDetailResponse;
 import com.app.master.service.core.response.admin.StaffListResponse;
 import com.app.master.service.core.service.AppService;
 import com.app.master.service.core.service.AwsService;
+import com.app.master.service.core.entity.StaffDocumentEntity;
 import com.app.master.service.repository.admin.*;
 import com.app.master.service.service.admin.StaffService;
 import com.google.common.base.Strings;
@@ -23,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -37,6 +39,7 @@ public class StaffServiceImpl extends AppService implements StaffService {
     private final StaffInsuranceCoverageRepository insuranceCoverageRepository;
     private final StaffLegalVerificationRepository legalVerificationRepository;
     private final StaffResidencyRepository residencyRepository;
+    private final StaffDocumentRepository staffDocumentRepository;
     private final AwsService awsService;
     private final Executor taskExecutor;
 
@@ -46,6 +49,7 @@ public class StaffServiceImpl extends AppService implements StaffService {
                             StaffInsuranceCoverageRepository insuranceCoverageRepository,
                             StaffLegalVerificationRepository legalVerificationRepository,
                             StaffResidencyRepository residencyRepository,
+                            StaffDocumentRepository staffDocumentRepository,
                             AwsService awsService,
                             @Qualifier("taskExecutor") Executor taskExecutor) {
         this.staffRepository = staffRepository;
@@ -54,6 +58,7 @@ public class StaffServiceImpl extends AppService implements StaffService {
         this.insuranceCoverageRepository = insuranceCoverageRepository;
         this.legalVerificationRepository = legalVerificationRepository;
         this.residencyRepository = residencyRepository;
+        this.staffDocumentRepository = staffDocumentRepository;
         this.awsService = awsService;
         this.taskExecutor = taskExecutor;
     }
@@ -130,7 +135,7 @@ public class StaffServiceImpl extends AppService implements StaffService {
         List<StaffLegalVerificationEntity> legal = legalVerificationRepository.findByStaffId(staff.getId());
         List<StaffResidencyEntity> residency = residencyRepository.findByStaffId(staff.getId());
 
-        List<String> keysToPresign = collectDocumentKeys(staff, education, family, legal);
+        List<String> keysToPresign = collectDocumentKeys(staff, education, family, insurance, legal);
         Map<String, String> presignedUrls = presignAllKeys(keysToPresign);
 
         return buildDetailResponse(staff, education, family, insurance, legal, residency, presignedUrls);
@@ -186,6 +191,8 @@ public class StaffServiceImpl extends AppService implements StaffService {
                     .forEach(e -> addKeyIfPresent(previousDocumentKeys, e.getCertificate()));
             familyLineageRepository.findByStaffId(staffId)
                     .forEach(e -> addKeyIfPresent(previousDocumentKeys, e.getDocument()));
+            insuranceCoverageRepository.findByStaffId(staffId)
+                    .forEach(e -> addKeyIfPresent(previousDocumentKeys, e.getDocument()));
             legalVerificationRepository.findByStaffId(staffId)
                     .forEach(e -> addKeyIfPresent(previousDocumentKeys, e.getDocument()));
         }
@@ -228,12 +235,15 @@ public class StaffServiceImpl extends AppService implements StaffService {
 
     private List<String> collectDocumentKeys(StaffEntity staff, List<StaffEducationHistoryEntity> education,
                                               List<StaffFamilyLineageEntity> family,
+                                              List<StaffInsuranceCoverageEntity> insurance,
                                               List<StaffLegalVerificationEntity> legal) {
         List<String> keys = new ArrayList<>();
         if (!Strings.isNullOrEmpty(staff.getAvatar())) keys.add(staff.getAvatar());
         education.stream().map(StaffEducationHistoryEntity::getCertificate)
                 .filter(k -> !Strings.isNullOrEmpty(k)).forEach(keys::add);
         family.stream().map(StaffFamilyLineageEntity::getDocument)
+                .filter(k -> !Strings.isNullOrEmpty(k)).forEach(keys::add);
+        insurance.stream().map(StaffInsuranceCoverageEntity::getDocument)
                 .filter(k -> !Strings.isNullOrEmpty(k)).forEach(keys::add);
         legal.stream().map(StaffLegalVerificationEntity::getDocument)
                 .filter(k -> !Strings.isNullOrEmpty(k)).forEach(keys::add);
@@ -275,6 +285,7 @@ public class StaffServiceImpl extends AppService implements StaffService {
                 .archive(staff.getArchive())
                 .educationHistory(education.stream()
                         .map(e -> StaffDetailResponse.EducationRow.builder()
+                                .id(e.getId())
                                 .level(e.getLevel()).institute(e.getInstitute()).city(e.getCity())
                                 .year(e.getYear()).percentage(e.getPercentage())
                                 .certificateObjectKey(e.getCertificate())
@@ -283,6 +294,7 @@ public class StaffServiceImpl extends AppService implements StaffService {
                         .collect(Collectors.toList()))
                 .familyLineage(family.stream()
                         .map(f -> StaffDetailResponse.FamilyRow.builder()
+                                .id(f.getId())
                                 .fullName(f.getFullName()).relation(f.getRelation())
                                 .contactNumber(f.getContactNumber())
                                 .documentObjectKey(f.getDocument())
@@ -291,11 +303,15 @@ public class StaffServiceImpl extends AppService implements StaffService {
                         .collect(Collectors.toList()))
                 .insuranceCoverage(insurance.stream()
                         .map(i -> StaffDetailResponse.InsuranceRow.builder()
+                                .id(i.getId())
                                 .insuranceProvider(i.getInsuranceProvider()).policyId(i.getPolicyId())
+                                .documentObjectKey(i.getDocument())
+                                .documentPresignedUrl(presign(presignedUrls, i.getDocument()))
                                 .build())
                         .collect(Collectors.toList()))
                 .legalVerification(legal.stream()
                         .map(l -> StaffDetailResponse.LegalRow.builder()
+                                .id(l.getId())
                                 .documentType(l.getDocumentType())
                                 .identificationNumber(l.getIdentificationNumber())
                                 .documentObjectKey(l.getDocument())
@@ -433,6 +449,91 @@ public class StaffServiceImpl extends AppService implements StaffService {
 
     private static <T> List<T> orEmpty(List<T> list) {
         return list == null ? Collections.emptyList() : list;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> uploadStaffDocument(UUID staffUuid, Long recordId, String type,
+                                                    String label, MultipartFile file) throws VeloriaException {
+        StaffEntity staff = staffRepository.findByUuid(staffUuid)
+                .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid staff uuid"));
+        try {
+            String cat = type.toUpperCase();
+            String s3Path = switch (cat) {
+                case "EDUCATION" -> {
+                    var rec = educationHistoryRepository.findById(recordId)
+                            .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Education record not found"));
+                    if (!rec.getStaffId().equals(staff.getId()))
+                        throw new VeloriaException(ResponseCode.BAD_REQUEST, "Record does not belong to this staff");
+                    yield awsService.getStaffEducationDocumentPath(staffUuid, file.getOriginalFilename());
+                }
+                case "FAMILY" -> {
+                    var rec = familyLineageRepository.findById(recordId)
+                            .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Family record not found"));
+                    if (!rec.getStaffId().equals(staff.getId()))
+                        throw new VeloriaException(ResponseCode.BAD_REQUEST, "Record does not belong to this staff");
+                    yield awsService.getStaffFamilyDocumentPath(staffUuid, file.getOriginalFilename());
+                }
+                case "INSURANCE" -> {
+                    var rec = insuranceCoverageRepository.findById(recordId)
+                            .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Insurance record not found"));
+                    if (!rec.getStaffId().equals(staff.getId()))
+                        throw new VeloriaException(ResponseCode.BAD_REQUEST, "Record does not belong to this staff");
+                    yield awsService.getStaffInsuranceDocumentPath(staffUuid, file.getOriginalFilename());
+                }
+                case "LEGAL" -> {
+                    var rec = legalVerificationRepository.findById(recordId)
+                            .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Legal record not found"));
+                    if (!rec.getStaffId().equals(staff.getId()))
+                        throw new VeloriaException(ResponseCode.BAD_REQUEST, "Record does not belong to this staff");
+                    yield awsService.getStaffLegalDocumentPath(staffUuid, file.getOriginalFilename());
+                }
+                default -> throw new VeloriaException(ResponseCode.BAD_REQUEST, "Unknown document type: " + type);
+            };
+
+            String key = awsService.uploadDocumentMultipart(file, s3Path);
+            String docLabel = Strings.isNullOrEmpty(label) ? file.getOriginalFilename() : label;
+
+            StaffDocumentEntity doc = StaffDocumentEntity.builder()
+                    .staffId(staff.getId())
+                    .category(cat)
+                    .recordId(recordId)
+                    .label(docLabel)
+                    .documentKey(key)
+                    .build();
+            staffDocumentRepository.save(doc);
+
+            return Map.of("id", doc.getId(), "label", docLabel, "url", awsService.getViewablePreSignedUrl(key));
+
+        } catch (VeloriaException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new VeloriaException(ResponseCode.AWS_ERROR, "Document upload failed: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public List<Map<String, Object>> getStaffDocuments(UUID staffUuid) throws VeloriaException {
+        StaffEntity staff = staffRepository.findByUuid(staffUuid)
+                .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid staff uuid"));
+        List<StaffDocumentEntity> docs = staffDocumentRepository.findByStaffIdOrderByUploadedAtDesc(staff.getId());
+        List<CompletableFuture<Map<String, Object>>> tasks = docs.stream()
+                .map(doc -> CompletableFuture.supplyAsync(() -> {
+                    try {
+                        String url = awsService.getViewablePreSignedUrl(doc.getDocumentKey());
+                        Map<String, Object> m = new java.util.LinkedHashMap<>();
+                        m.put("id", doc.getId());
+                        m.put("category", doc.getCategory());
+                        m.put("recordId", doc.getRecordId());
+                        m.put("label", doc.getLabel() != null ? doc.getLabel() : "");
+                        m.put("url", url);
+                        m.put("uploadedAt", doc.getUploadedAt().toString());
+                        return m;
+                    } catch (Exception e) { return null; }
+                }, taskExecutor))
+                .collect(Collectors.toList());
+        return tasks.stream().map(CompletableFuture::join)
+                .filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     @Override

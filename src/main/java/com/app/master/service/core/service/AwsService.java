@@ -174,6 +174,11 @@ public class AwsService extends AppService {
         return "staff/" + staffUuid + "/legal/" + UUID.randomUUID() + "/" + name;
     }
 
+    public String getStaffInsuranceDocumentPath(UUID staffUuid, String fileName) {
+        String name = StringUtils.isNotBlank(fileName) ? fileName : "document";
+        return "staff/" + staffUuid + "/insurance/" + UUID.randomUUID() + "/" + name;
+    }
+
     public String getPreSignedUrlForBase64(String key) throws IOException {
         if (StringUtils.isBlank(key)) return null;
         try {

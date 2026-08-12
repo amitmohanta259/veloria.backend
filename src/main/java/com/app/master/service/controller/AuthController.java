@@ -3,6 +3,7 @@ package com.app.master.service.controller;
 import com.app.master.service.core.controller.AppController;
 import com.app.master.service.core.exception.VeloriaException;
 import com.app.master.service.core.request.AuthRequest;
+import com.app.master.service.core.request.RegisterRequest;
 import com.app.master.service.core.response.Response;
 import com.app.master.service.core.response.ResponseCode;
 import com.app.master.service.service.AuthService;
@@ -28,6 +29,12 @@ public class AuthController extends AppController {
     @PostMapping("/login")
     public ResponseEntity<Response> login(@Valid @RequestBody AuthRequest request) throws VeloriaException {
         return success(ResponseCode.OK, "Login successful", authService.login(request));
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<Response> register(@Valid @RequestBody RegisterRequest request) throws VeloriaException {
+        authService.register(request);
+        return success(ResponseCode.OK, "Registration successful. You can now sign in.", null);
     }
 
 }

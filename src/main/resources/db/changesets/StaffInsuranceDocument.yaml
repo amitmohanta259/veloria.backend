@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: add_document_to_staff_insurance_coverage
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: staff_insurance_coverage
+            columns:
+              - column:
+                  name: document
+                  type: varchar(512)

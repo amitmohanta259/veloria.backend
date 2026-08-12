@@ -14,6 +14,7 @@ public class CustomerOrderItemResponse {
     private UUID uuid;
     private UUID productUuid;
     private String productName;
+    private String skuId;
     private String productImageUrl;
     private Long price;
     private String currency;

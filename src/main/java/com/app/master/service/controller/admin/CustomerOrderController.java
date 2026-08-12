@@ -1,8 +1,10 @@
 package com.app.master.service.controller.admin;
 
 import com.app.master.service.core.exception.VeloriaException;
+import com.app.master.service.core.response.admin.CustomerDetailResponse;
 import com.app.master.service.core.response.admin.CustomerOrderResponse;
 import com.app.master.service.core.response.admin.CustomerStatsResponse;
+import com.app.master.service.core.response.admin.CustomerSummaryResponse;
 import com.app.master.service.service.admin.CustomerOrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
@@ -36,5 +38,19 @@ public class CustomerOrderController {
     @GetMapping("/stats")
     public ResponseEntity<CustomerStatsResponse> stats(@RequestParam String customerId) {
         return ResponseEntity.ok(customerOrderService.getStats(customerId));
+    }
+
+    @GetMapping("/customers")
+    public ResponseEntity<Page<CustomerSummaryResponse>> customerList(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        return ResponseEntity.ok(customerOrderService.getCustomerList(search, status, page, pageSize));
+    }
+
+    @GetMapping("/customers/{customerId}/details")
+    public ResponseEntity<CustomerDetailResponse> customerDetail(@PathVariable String customerId) {
+        return ResponseEntity.ok(customerOrderService.getCustomerDetail(customerId));
     }
 }

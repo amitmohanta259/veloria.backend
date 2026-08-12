@@ -8,6 +8,8 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.simpleemail.AmazonSimpleEmailService;
 import com.amazonaws.services.simpleemail.AmazonSimpleEmailServiceClientBuilder;
+import com.amazonaws.services.sns.AmazonSNS;
+import com.amazonaws.services.sns.AmazonSNSClientBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
@@ -78,6 +80,14 @@ public class AwsConfig {
         return SesClient.builder()
                 .region(Region.of(region))
                 .credentialsProvider(() -> awsCredentials)
+                .build();
+    }
+
+    @Bean
+    public AmazonSNS snsClient() {
+        return AmazonSNSClientBuilder.standard()
+                .withCredentials(awsCredentialsProvider())
+                .withRegion(region)
                 .build();
     }
 

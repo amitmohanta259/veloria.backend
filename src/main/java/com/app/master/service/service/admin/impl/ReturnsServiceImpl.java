@@ -7,7 +7,6 @@ import com.app.master.service.core.response.admin.ReturnsLogResponse;
 import com.app.master.service.core.response.admin.ReturnsStatsResponse;
 import com.app.master.service.core.service.AppService;
 import com.app.master.service.repository.admin.CustomerOrderItemRepository;
-import com.app.master.service.repository.admin.CustomerOrderRepository;
 import com.app.master.service.service.admin.ReturnsService;
 import com.google.common.base.Strings;
 import org.springframework.data.domain.Page;
@@ -24,12 +23,9 @@ import java.util.UUID;
 public class ReturnsServiceImpl extends AppService implements ReturnsService {
 
     private final CustomerOrderItemRepository itemRepository;
-    private final CustomerOrderRepository orderRepository;
 
-    public ReturnsServiceImpl(CustomerOrderItemRepository itemRepository,
-                              CustomerOrderRepository orderRepository) {
+    public ReturnsServiceImpl(CustomerOrderItemRepository itemRepository) {
         this.itemRepository = itemRepository;
-        this.orderRepository = orderRepository;
     }
 
     @Override
@@ -43,11 +39,11 @@ public class ReturnsServiceImpl extends AppService implements ReturnsService {
 
     @Override
     public ReturnsStatsResponse getStats() throws VeloriaException {
-        long totalReturns = orderRepository.countByStatusAndArchiveFalse("RETURNED");
-        long totalOrders  = orderRepository.countByArchiveFalse();
+        long totalReturns = itemRepository.countReturnedItems();
+        long totalOrders  = itemRepository.countAllItems();
         double returnRate = totalOrders == 0 ? 0.0
                 : Math.round((totalReturns * 100.0 / totalOrders) * 100.0) / 100.0;
-        Long returnValue  = orderRepository.sumReturnedTotalValue();
+        Long returnValue  = itemRepository.sumReturnedItemValue();
         return ReturnsStatsResponse.builder()
                 .totalReturns(totalReturns)
                 .totalOrders(totalOrders)

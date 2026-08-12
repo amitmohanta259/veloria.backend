@@ -19,4 +19,5 @@ public class StaffInsuranceCoverageEntity {
     private Long staffId;
     private String insuranceProvider;
     private String policyId;
+    private String document;
 }

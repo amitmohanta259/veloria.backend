@@ -162,4 +162,31 @@ public interface CustomerOrderItemRepository extends JpaRepository<CustomerOrder
             LIMIT 6
             """)
     List<Object[]> findTopReturnReasons();
+
+    @Query(nativeQuery = true, value = """
+            SELECT COUNT(*)
+            FROM customer_order_item coi
+            JOIN customer_order co ON co.id = coi.customer_order_id
+            WHERE coi.archive = false AND co.archive = false
+              AND (co.status = 'RETURNED' OR coi.reason_for_return IS NOT NULL)
+            """)
+    long countReturnedItems();
+
+    @Query(nativeQuery = true, value = """
+            SELECT COUNT(*)
+            FROM customer_order_item coi
+            JOIN customer_order co ON co.id = coi.customer_order_id
+            WHERE coi.archive = false AND co.archive = false
+            """)
+    long countAllItems();
+
+    @Query(nativeQuery = true, value = """
+            SELECT COALESCE(SUM(ip.price), 0)
+            FROM customer_order_item coi
+            JOIN customer_order co ON co.id = coi.customer_order_id
+            JOIN inventory_product ip ON ip.uuid = coi.product_uuid
+            WHERE coi.archive = false AND co.archive = false AND ip.archive = false
+              AND (co.status = 'RETURNED' OR coi.reason_for_return IS NOT NULL)
+            """)
+    Long sumReturnedItemValue();
 }

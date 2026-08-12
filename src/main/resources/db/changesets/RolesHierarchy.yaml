@@ -1,0 +1,34 @@
+databaseChangeLog:
+  - changeSet:
+      id: alter_roles_add_hierarchy_columns
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: roles
+            columns:
+              - column:
+                  name: department
+                  type: varchar(255)
+              - column:
+                  name: designation
+                  type: varchar(255)
+              - column:
+                  name: staff_uuid
+                  type: uuid
+        - dropColumn:
+            tableName: roles
+            columnName: scope_type
+        - dropColumn:
+            tableName: roles
+            columnName: scope_value
+
+  - changeSet:
+      id: alter_roles_drop_name_description
+      author: veloria
+      changes:
+        - dropColumn:
+            tableName: roles
+            columnName: name
+        - dropColumn:
+            tableName: roles
+            columnName: description

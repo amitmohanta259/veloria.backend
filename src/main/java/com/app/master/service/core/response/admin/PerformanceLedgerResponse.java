@@ -16,8 +16,8 @@ public class PerformanceLedgerResponse {
     private String collection;
     private String subCategory;
     private String productName;
-    private long sales;
-    private long returns;
-    private long intent;
-    private double conversion;
+    private long inSold;
+    private long returned;
+    private long damaged;
+    private long inInventory;
 }

@@ -234,10 +234,10 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
         String subCategory = (String) row[2];
         String productName = (String) row[3];
         UUID   productUuid = (UUID)   row[4];
-        long   sales       = row[5] instanceof Long l ? l : ((Number) row[5]).longValue();
-        long   returns     = row[6] instanceof Long l ? l : ((Number) row[6]).longValue();
-        long   intent      = row[7] instanceof Long l ? l : ((Number) row[7]).longValue();
-        double conversion  = row[8] instanceof Double d ? d : ((Number) row[8]).doubleValue();
+        long   inSold      = row[5] instanceof Long l ? l : ((Number) row[5]).longValue();
+        long   returned    = row[6] instanceof Long l ? l : ((Number) row[6]).longValue();
+        long   damaged     = row[7] instanceof Long l ? l : ((Number) row[7]).longValue();
+        long   inInventory = row[8] instanceof Long l ? l : ((Number) row[8]).longValue();
 
         return PerformanceLedgerResponse.builder()
                 .productUuid(productUuid)
@@ -245,10 +245,10 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
                 .collection(collection)
                 .subCategory(subCategory)
                 .productName(productName)
-                .sales(sales)
-                .returns(returns)
-                .intent(intent)
-                .conversion(conversion)
+                .inSold(inSold)
+                .returned(returned)
+                .damaged(damaged)
+                .inInventory(inInventory)
                 .build();
     }
 

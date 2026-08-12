@@ -1,0 +1,99 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_roles_table
+      author: veloria
+      changes:
+        - createTable:
+            tableName: roles
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: uuid
+                  type: uuid
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: varchar(500)
+              - column:
+                  name: scope_type
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: scope_value
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created
+                  type: timestamp
+              - column:
+                  name: modified
+                  type: timestamp
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: modified_by
+                  type: varchar(255)
+
+  - changeSet:
+      id: create_role_permissions_table
+      author: veloria
+      changes:
+        - createTable:
+            tableName: role_permissions
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: role_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: module
+                  type: varchar(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: can_view
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: can_create
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: can_edit
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: can_delete
+                  type: boolean
+                  defaultValueBoolean: false
+        - addForeignKeyConstraint:
+            baseTableName: role_permissions
+            baseColumnNames: role_id
+            referencedTableName: roles
+            referencedColumnNames: id
+            constraintName: fk_role_permissions_role
+            onDelete: CASCADE

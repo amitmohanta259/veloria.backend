@@ -59,3 +59,15 @@ databaseChangeLog:
       file: db/changesets/PurchaseOrderStatusRename.yaml
   - include:
       file: db/changesets/StaffAddName.yaml
+  - include:
+      file: db/changesets/StaffInsuranceDocument.yaml
+  - include:
+      file: db/changesets/StaffDocuments.yaml
+  - include:
+      file: db/changesets/Roles.yaml
+  - include:
+      file: db/changesets/RolesHierarchy.yaml
+  - include:
+      file: db/changesets/UserPasswordHash.yaml
+  - include:
+      file: db/changesets/UserAddress.yaml

@@ -3,16 +3,21 @@ package com.app.master.service.service.admin.impl;
 import com.app.master.service.core.entity.CustomerOrderEntity;
 import com.app.master.service.core.entity.CustomerOrderItemEntity;
 import com.app.master.service.core.entity.InventoryProductEntity;
+import com.app.master.service.core.entity.UserEntity;
 import com.app.master.service.core.exception.VeloriaException;
 import com.app.master.service.core.response.ResponseCode;
+import com.app.master.service.core.response.admin.CustomerDetailResponse;
 import com.app.master.service.core.response.admin.CustomerOrderItemResponse;
 import com.app.master.service.core.response.admin.CustomerOrderResponse;
 import com.app.master.service.core.response.admin.CustomerStatsResponse;
+import com.app.master.service.core.response.admin.CustomerSummaryResponse;
 import com.app.master.service.core.service.AwsService;
 import com.app.master.service.repository.admin.CustomerOrderItemRepository;
 import com.app.master.service.repository.admin.CustomerOrderRepository;
 import com.app.master.service.repository.admin.InventoryProductImagesRepository;
 import com.app.master.service.repository.admin.InventoryProductRepository;
+import com.app.master.service.repository.client.UserAddressRepository;
+import com.app.master.service.repository.client.UserRepository;
 import com.app.master.service.service.admin.CustomerOrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -23,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -36,17 +42,23 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
     private final InventoryProductRepository inventoryProductRepository;
     private final InventoryProductImagesRepository imagesRepository;
     private final AwsService awsService;
+    private final UserRepository userRepository;
+    private final UserAddressRepository userAddressRepository;
 
     public CustomerOrderServiceImpl(CustomerOrderRepository customerOrderRepository,
                                     CustomerOrderItemRepository customerOrderItemRepository,
                                     InventoryProductRepository inventoryProductRepository,
                                     InventoryProductImagesRepository imagesRepository,
-                                    AwsService awsService) {
+                                    AwsService awsService,
+                                    UserRepository userRepository,
+                                    UserAddressRepository userAddressRepository) {
         this.customerOrderRepository = customerOrderRepository;
         this.customerOrderItemRepository = customerOrderItemRepository;
         this.inventoryProductRepository = inventoryProductRepository;
         this.imagesRepository = imagesRepository;
         this.awsService = awsService;
+        this.userRepository = userRepository;
+        this.userAddressRepository = userAddressRepository;
     }
 
     @Override
@@ -98,6 +110,58 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                 .build();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<CustomerSummaryResponse> getCustomerList(String search, String status, int page, int pageSize) {
+        String searchParam = (search == null || search.isBlank()) ? null : search.trim();
+        String statusParam = (status == null || status.isBlank() || "All".equalsIgnoreCase(status)) ? null : status;
+        Page<Object[]> rows = customerOrderRepository.findCustomerSummaryList(searchParam, statusParam, PageRequest.of(page, pageSize));
+        return rows.map(r -> CustomerSummaryResponse.builder()
+                .customerId((String) r[0])
+                .name((String) r[1])
+                .email((String) r[2])
+                .phone((String) r[3])
+                .joiningDate(r[4] != null ? r[4].toString() : null)
+                .purchases(((Number) r[5]).longValue())
+                .cancellationsReturns(((Number) r[6]).longValue())
+                .lifetimeValue(((Number) r[7]).longValue())
+                .status((String) r[8])
+                .build());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CustomerDetailResponse getCustomerDetail(String customerId) {
+        Optional<UserEntity> userOpt = userRepository.findByUuidString(customerId);
+        String name = userOpt.map(u -> {
+            String full = "";
+            if (u.getFirstName() != null) full += u.getFirstName();
+            if (u.getMiddleName() != null) full += (full.isEmpty() ? "" : " ") + u.getMiddleName();
+            if (u.getLastName() != null) full += (full.isEmpty() ? "" : " ") + u.getLastName();
+            return full.isEmpty() ? null : full;
+        }).orElse(null);
+
+        List<CustomerDetailResponse.Address> addresses = userAddressRepository
+                .findByUserIdAndArchiveFalseOrderByIsDefaultDescCreatedAtAsc(customerId)
+                .stream()
+                .map(a -> CustomerDetailResponse.Address.builder()
+                        .uuid(a.getUuid())
+                        .receiverName(a.getReceiverName())
+                        .phone(a.getPhone())
+                        .address(a.getAddress())
+                        .isDefault(Boolean.TRUE.equals(a.getIsDefault()))
+                        .build())
+                .toList();
+
+        return CustomerDetailResponse.builder()
+                .name(name)
+                .email(userOpt.map(UserEntity::getEmail).orElse(null))
+                .phone(userOpt.map(UserEntity::getPhone).orElse(null))
+                .joiningDate(userOpt.map(UserEntity::getCreated).orElse(null))
+                .addresses(addresses)
+                .build();
+    }
+
     private Map<UUID, InventoryProductEntity> buildProductMap(List<CustomerOrderItemEntity> items) {
         List<UUID> productUuids = items.stream()
                 .map(CustomerOrderItemEntity::getProductUuid)
@@ -145,6 +209,7 @@ public class CustomerOrderServiceImpl implements CustomerOrderService {
                             .uuid(item.getUuid())
                             .productUuid(item.getProductUuid())
                             .productName(product != null ? product.getName() : "—")
+                            .skuId(product != null ? product.getSkuId() : null)
                             .productImageUrl(resolveImageUrl(imageKey))
                             .price(product != null ? product.getPrice() : 0L)
                             .currency(item.getCurrency())

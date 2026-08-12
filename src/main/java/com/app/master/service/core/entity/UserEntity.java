@@ -68,4 +68,7 @@ public class UserEntity extends Base {
 
     private Boolean active;
     private Boolean archive;
+
+    @Column(name = "password_hash")
+    private String passwordHash;
 }

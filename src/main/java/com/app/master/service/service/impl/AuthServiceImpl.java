@@ -4,11 +4,16 @@ import com.app.master.service.core.constant.ResponseError;
 import com.app.master.service.core.constant.ServiceConstants;
 import com.app.master.service.core.exception.VeloriaException;
 import com.app.master.service.core.request.AuthRequest;
+import com.app.master.service.core.request.RegisterRequest;
 import com.app.master.service.core.response.AuthResponse;
 import com.app.master.service.core.response.ResponseCode;
 import com.app.master.service.core.service.AppService;
 import com.app.master.service.service.AuthService;
+import javax.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
+import org.keycloak.admin.client.Keycloak;
+import org.keycloak.representations.idm.CredentialRepresentation;
+import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -19,6 +24,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -38,9 +44,11 @@ public class AuthServiceImpl extends AppService implements AuthService {
     private String clientSecret;
 
     private final RestTemplate restTemplate;
+    private final Keycloak keycloak;
 
-    public AuthServiceImpl(RestTemplate restTemplate) {
+    public AuthServiceImpl(RestTemplate restTemplate, Keycloak keycloak) {
         this.restTemplate = restTemplate;
+        this.keycloak = keycloak;
     }
 
     @Override
@@ -87,6 +95,40 @@ public class AuthServiceImpl extends AppService implements AuthService {
         }
 
         return null;
+    }
+
+    @Override
+    public void register(RegisterRequest request) throws VeloriaException {
+        CredentialRepresentation credential = new CredentialRepresentation();
+        credential.setType(CredentialRepresentation.PASSWORD);
+        credential.setValue(request.getPassword());
+        credential.setTemporary(false);
+
+        UserRepresentation user = new UserRepresentation();
+        user.setUsername(request.getEmail());
+        user.setEmail(request.getEmail());
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
+        user.setEnabled(true);
+        user.setEmailVerified(true);
+        user.setCredentials(List.of(credential));
+        user.setAttributes(Map.of("phone", List.of(request.getPhone())));
+
+        try (Response response = keycloak.realm(realm).users().create(user)) {
+            if (response.getStatus() == 201) {
+                log.info("Keycloak user created: {}", request.getEmail());
+            } else if (response.getStatus() == 409) {
+                throwError(ResponseCode.BAD_REQUEST, "An account with this email already exists.");
+            } else {
+                log.error("Keycloak user creation failed: {} {}", response.getStatus(), response.readEntity(String.class));
+                throwError(ResponseCode.IAM_ERROR, "Registration failed. Please try again.");
+            }
+        } catch (VeloriaException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Registration error", e);
+            throwError(ResponseCode.IAM_ERROR, "Unable to complete registration. Please try again.");
+        }
     }
 
 }

@@ -28,7 +28,6 @@
         <aws-s3.version>2.20.131</aws-s3.version>
         <aws-ses.version>2.20.136</aws-ses.version>
         <json.version>20220924</json.version>
-        <keycloak-client.version>15.0.2</keycloak-client.version>
         <modelmapper.version>3.1.0</modelmapper.version>
     </properties>
 
@@ -160,6 +159,7 @@
             <artifactId>keycloak-admin-client</artifactId>
             <version>${keycloak-client.version}</version>
         </dependency>
+
 
         <dependency>
             <groupId>org.postgresql</groupId>

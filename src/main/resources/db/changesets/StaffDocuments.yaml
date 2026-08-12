@@ -1,0 +1,46 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_staff_documents_table
+      author: veloria
+      changes:
+        - createTable:
+            tableName: staff_documents
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: staff_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: category
+                  type: varchar(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: record_id
+                  type: bigint
+              - column:
+                  name: label
+                  type: varchar(255)
+              - column:
+                  name: document_key
+                  type: varchar(512)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: uploaded_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+        - createIndex:
+            tableName: staff_documents
+            indexName: idx_staff_documents_staff_id
+            columns:
+              - column:
+                  name: staff_id

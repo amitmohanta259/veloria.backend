@@ -48,6 +48,11 @@ public class WebSecurityConfig extends AppService {
 
                         //With new end-points Master service
                         "/api/master/login",
+                        "/api/master/register",
+                        "/api/master/client/register",
+                        "/api/master/client/login/password",
+                        "/api/master/client/login/send-otp",
+                        "/api/master/client/login/verify-otp",
                         "/api/master/reset-password",
                         "/api/master/forgot-password",
                         "/api/master/forgot-password/resend",

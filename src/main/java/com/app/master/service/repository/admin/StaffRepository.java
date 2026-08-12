@@ -20,6 +20,9 @@ public interface StaffRepository extends JpaRepository<StaffEntity, Long> {
 
     long countByArchiveFalse();
     long countByArchiveFalseAndActive(boolean active);
+    long countByArchiveFalseAndDepartment(StaffDepartment department);
+    long countByArchiveFalseAndDesignationIgnoreCase(String designation);
+    long countByArchiveFalseAndDepartmentAndDesignationIgnoreCase(StaffDepartment department, String designation);
 
     @Query("""
             SELECT new com.app.master.service.core.response.admin.StaffListResponse(

@@ -57,33 +57,34 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
                 ip.uuid                                              AS product_uuid,
                 COUNT(CASE
                     WHEN coi.id IS NOT NULL
-                         AND co.status != 'RETURNED'
+                         AND co.status IN ('ORDER_PLACED', 'IN_TRANSIT', 'DISPATCHED', 'DONE', 'DELIVERED')
                          AND coi.reason_for_return IS NULL
-                    THEN 1 END)                                      AS sales,
+                    THEN 1 END)                                      AS in_sold,
                 COUNT(CASE
                     WHEN coi.id IS NOT NULL
                          AND (co.status = 'RETURNED' OR coi.reason_for_return IS NOT NULL)
-                    THEN 1 END)                                      AS returns,
-                COUNT(pi.id)                                         AS intent,
-                CASE
-                    WHEN COUNT(pi.id) = 0 THEN 0.0
-                    ELSE ROUND(
-                        COUNT(CASE
-                            WHEN coi.id IS NOT NULL
-                                 AND co.status != 'RETURNED'
-                                 AND coi.reason_for_return IS NULL
-                            THEN 1 END) * 100.0 / NULLIF(COUNT(pi.id), 0),
-                        2)
-                END                                                  AS conversion
+                    THEN 1 END)                                      AS returned,
+                0                                                    AS damaged,
+                GREATEST(0,
+                    COALESCE(ip.initial_stock, 0)
+                    - COUNT(CASE
+                        WHEN coi.id IS NOT NULL
+                             AND co.status IN ('ORDER_PLACED', 'IN_TRANSIT', 'DISPATCHED', 'DONE', 'DELIVERED')
+                             AND coi.reason_for_return IS NULL
+                        THEN 1 END)
+                    + COUNT(CASE
+                        WHEN coi.id IS NOT NULL
+                             AND (co.status = 'RETURNED' OR coi.reason_for_return IS NOT NULL)
+                        THEN 1 END)
+                )                                                    AS in_inventory
             FROM inventory_product ip
             JOIN inventory_sub_category isc  ON isc.id   = ip.sub_category_id  AND isc.archive  = false
             JOIN inventory_collection   icol ON icol.id  = isc.collection_id   AND icol.archive = false
             JOIN inventory_category     ic   ON ic.id    = icol.category_id    AND ic.archive   = false
             LEFT JOIN customer_order_item coi ON coi.product_uuid = ip.uuid    AND coi.archive  = false
             LEFT JOIN customer_order      co  ON co.id = coi.customer_order_id  AND co.archive   = false
-            LEFT JOIN product_intent      pi  ON pi.product_uuid = ip.uuid      AND pi.archive   = false
             WHERE ip.archive = false
-            GROUP BY ic.name, icol.name, isc.name, ip.name, ip.uuid
+            GROUP BY ic.name, icol.name, isc.name, ip.name, ip.uuid, ip.initial_stock
             ORDER BY ic.name, icol.name, isc.name, ip.name
             """)
     List<Object[]> findPerformanceLedger();

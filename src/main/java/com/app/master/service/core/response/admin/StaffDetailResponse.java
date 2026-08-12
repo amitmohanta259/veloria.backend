@@ -39,6 +39,7 @@ public class StaffDetailResponse {
     @AllArgsConstructor
     @Builder
     public static class EducationRow {
+        private Long id;
         private String level;
         private String institute;
         private String city;
@@ -54,6 +55,7 @@ public class StaffDetailResponse {
     @AllArgsConstructor
     @Builder
     public static class FamilyRow {
+        private Long id;
         private String fullName;
         private String relation;
         private String contactNumber;
@@ -67,8 +69,11 @@ public class StaffDetailResponse {
     @AllArgsConstructor
     @Builder
     public static class InsuranceRow {
+        private Long id;
         private String insuranceProvider;
         private String policyId;
+        private String documentObjectKey;
+        private String documentPresignedUrl;
     }
 
     @Getter
@@ -77,6 +82,7 @@ public class StaffDetailResponse {
     @AllArgsConstructor
     @Builder
     public static class LegalRow {
+        private Long id;
         private String documentType;
         private String identificationNumber;
         private String documentObjectKey;

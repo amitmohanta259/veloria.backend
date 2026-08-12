@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -90,6 +91,22 @@ public class StaffController extends AppController {
     public ResponseEntity<Response> archiveStaff(@PathVariable UUID staffUuid) throws VeloriaException {
         staffService.archiveStaff(staffUuid);
         return success(ResponseCode.DELETED, "Staff archived successfully", null);
+    }
+
+    @PostMapping(value = "/{staffUuid}/document", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Response> uploadDocument(@PathVariable UUID staffUuid,
+                                                   @RequestParam Long recordId,
+                                                   @RequestParam String type,
+                                                   @RequestParam(required = false) String label,
+                                                   @RequestPart MultipartFile file) throws VeloriaException {
+        return success(ResponseCode.OK, "Document uploaded",
+                staffService.uploadStaffDocument(staffUuid, recordId, type, label, file));
+    }
+
+    @GetMapping("/{staffUuid}/documents")
+    public ResponseEntity<Response> getDocuments(@PathVariable UUID staffUuid) throws VeloriaException {
+        return success(ResponseCode.FETCHED, "Documents retrieved",
+                staffService.getStaffDocuments(staffUuid));
     }
 
     @GetMapping("/stats")
