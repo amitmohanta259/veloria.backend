@@ -8,6 +8,7 @@ import com.app.master.service.core.response.admin.ReturnsStatsResponse;
 import org.springframework.data.domain.Page;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface ReturnsService {
 
@@ -18,4 +19,6 @@ public interface ReturnsService {
     List<ReturnTrendPointResponse> getTrends(String period) throws VeloriaException;
 
     List<ReturnReasonResponse> getReasons() throws VeloriaException;
+
+    void setReturnCondition(UUID itemUuid, String condition) throws VeloriaException;
 }

@@ -1,0 +1,28 @@
+databaseChangeLog:
+  - changeSet:
+      id: fix_broken_product_images
+      author: veloria-fix
+      changes:
+        - sql:
+            sql: |
+              -- Ivory Palazzo Set: first image URL returns 404
+              UPDATE inventory_product_images
+              SET image = 'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&w=800&q=80'
+              WHERE image = 'https://images.unsplash.com/photo-1583391733956-6c78276477e1?auto=format&w=800&q=80';
+
+              -- Royal Banarasi Bridal Saree: first image URL returns 404
+              UPDATE inventory_product_images
+              SET image = 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&w=800&q=80'
+              WHERE image = 'https://images.unsplash.com/photo-1606503153255-59d5e417476a?auto=format&w=800&q=80';
+
+              -- Silk Gown: no image row exists
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(),
+                     (SELECT id FROM inventory_product WHERE uuid = 'efb69c50-697f-4c16-9f08-0ec934aabbf9'),
+                     'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?auto=format&w=800&q=80',
+                     now()
+              WHERE EXISTS (SELECT 1 FROM inventory_product WHERE uuid = 'efb69c50-697f-4c16-9f08-0ec934aabbf9')
+                AND NOT EXISTS (
+                  SELECT 1 FROM inventory_product_images
+                  WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = 'efb69c50-697f-4c16-9f08-0ec934aabbf9')
+                );

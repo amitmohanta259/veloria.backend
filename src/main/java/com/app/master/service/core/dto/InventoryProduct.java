@@ -19,6 +19,7 @@ public class InventoryProduct {
     private String description;
     private String skuId;
     private Long price;
+    private Long sellingPrice;
     private InventoryCurrency priceCurrency;
     private Long initialStock;
     private InventoryVisibility visibility;

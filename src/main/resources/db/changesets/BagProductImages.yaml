@@ -1,0 +1,101 @@
+databaseChangeLog:
+  - changeSet:
+      id: bag_product_images_seed
+      author: veloria-bags
+      changes:
+        - sql:
+            sql: |
+              -- Maison Tote (VEL-BAG-TOT-001)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = 'f209f33c-8c87-4f47-b1f5-95a6487fd8b9'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = 'f209f33c-8c87-4f47-b1f5-95a6487fd8b9'));
+
+              -- Veloria Grand Tote (VEL-BAG-TOT-002)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = '0c38b888-d6c2-4cc2-94f9-fe716b583c8a'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = '0c38b888-d6c2-4cc2-94f9-fe716b583c8a'));
+
+              -- Atelier Shoulder (VEL-BAG-SHO-001)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = '6d0febec-b96a-4e4d-8ee1-bfeece5fcf7c'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = '6d0febec-b96a-4e4d-8ee1-bfeece5fcf7c'));
+
+              -- Heritage Shoulder (VEL-BAG-SHO-002)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = '2883d234-5de3-4f95-bbef-0492bdd8717f'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = '2883d234-5de3-4f95-bbef-0492bdd8717f'));
+
+              -- Structured Satchel (VEL-BAG-SAT-001)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = '014a2f18-12ae-4862-be9a-ac75c34f4854'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = '014a2f18-12ae-4862-be9a-ac75c34f4854'));
+
+              -- Mini Satchel (VEL-BAG-SAT-002)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1594938298603-c8148c4b4a7b?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = 'cffe2bcd-d7cd-4c53-9942-92654a51a487'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = 'cffe2bcd-d7cd-4c53-9942-92654a51a487'));
+
+              -- Veloria Crossbody (VEL-BAG-CRO-001)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1601924994987-69e26d50dc26?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = '8ddcfa45-cc1c-4a55-89f3-7467a35323fe'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = '8ddcfa45-cc1c-4a55-89f3-7467a35323fe'));
+
+              -- Chain Crossbody (VEL-BAG-CRO-002)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1614179689702-355944cd0918?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = '708eed29-45d1-417d-98e6-fb0833ffb38b'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = '708eed29-45d1-417d-98e6-fb0833ffb38b'));
+
+              -- Veloria City Backpack (VEL-BAG-BAK-001)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = '6313a894-e97d-4731-a2b3-1b292eb9f8be'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = '6313a894-e97d-4731-a2b3-1b292eb9f8be'));
+
+              -- Mini Leather Backpack (VEL-BAG-BAK-002)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1622560480605-d83c853bc5c3?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = '6a8ca0bc-7e17-49ef-af3d-93c95504374f'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = '6a8ca0bc-7e17-49ef-af3d-93c95504374f'));
+
+              -- Crystal Evening Clutch (VEL-BAG-CLT-001)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1575032617751-6ddec2089882?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = 'dd4fe7ed-3a00-4954-8405-0ec9f9ba92e5'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = 'dd4fe7ed-3a00-4954-8405-0ec9f9ba92e5'));
+
+              -- Velvet Suede Clutch (VEL-BAG-CLT-002)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = '1dff5661-2e32-43b0-9c1c-b11f75884ddb'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = '1dff5661-2e32-43b0-9c1c-b11f75884ddb'));
+
+              -- Veloria Box Bag (VEL-BAG-BOX-001)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1547949003-9792a18a2601?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = '0153c94d-e76b-459c-91aa-7e0945019399'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = '0153c94d-e76b-459c-91aa-7e0945019399'));
+
+              -- Patent Mini Box (VEL-BAG-BOX-002)
+              INSERT INTO inventory_product_images (uuid, product_id, image, created)
+              SELECT gen_random_uuid(), id, 'https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?auto=format&w=800&q=80', now()
+              FROM inventory_product WHERE uuid = 'f177adb2-21a7-4b68-953f-54a4d1cbf48d'
+              AND NOT EXISTS (SELECT 1 FROM inventory_product_images WHERE product_id = (SELECT id FROM inventory_product WHERE uuid = 'f177adb2-21a7-4b68-953f-54a4d1cbf48d'));
+
+  - changeSet:
+      id: fix_mini_satchel_image
+      author: veloria-fix
+      changes:
+        - sql:
+            sql: |
+              -- Mini Satchel: replace 404 URL with working one
+              UPDATE inventory_product_images
+              SET image = 'https://images.unsplash.com/photo-1591348278863-a8fb3887e2aa?auto=format&w=800&q=80'
+              WHERE image = 'https://images.unsplash.com/photo-1594938298603-c8148c4b4a7b?auto=format&w=800&q=80';

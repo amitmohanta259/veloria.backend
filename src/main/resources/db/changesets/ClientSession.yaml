@@ -1,0 +1,56 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_client_session_table
+      author: veloria
+      changes:
+        - createTable:
+            tableName: client_session
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: token
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: user_id
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+              - column:
+                  name: email
+                  type: VARCHAR(255)
+              - column:
+                  name: phone
+                  type: VARCHAR(255)
+              - column:
+                  name: expiry
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: NOW()
+        - createIndex:
+            indexName: idx_client_session_token
+            tableName: client_session
+            columns:
+              - column:
+                  name: token
+        - createIndex:
+            indexName: idx_client_session_expiry
+            tableName: client_session
+            columns:
+              - column:
+                  name: expiry

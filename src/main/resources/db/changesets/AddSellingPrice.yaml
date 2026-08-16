@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: add_selling_price_to_inventory_product
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: inventory_product
+            columns:
+              - column:
+                  name: selling_price
+                  type: BIGINT

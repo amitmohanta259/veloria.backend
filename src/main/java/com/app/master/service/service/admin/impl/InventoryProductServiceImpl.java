@@ -12,6 +12,7 @@ import com.app.master.service.core.response.admin.PerformanceLedgerResponse;
 import com.app.master.service.core.response.admin.TopSellerItemResponse;
 import com.app.master.service.core.service.AppService;
 import com.app.master.service.core.service.AwsService;
+import com.app.master.service.repository.admin.CustomerOrderItemRepository;
 import com.app.master.service.repository.admin.InventoryProductImagesRepository;
 import com.app.master.service.repository.admin.InventoryProductRepository;
 import com.app.master.service.repository.admin.InventorySubCategoryRepository;
@@ -42,15 +43,17 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
     private final InventoryProductRepository productRepository;
     private final InventoryProductImagesRepository imagesRepository;
     private final InventorySubCategoryRepository subCategoryRepository;
+    private final CustomerOrderItemRepository orderItemRepository;
     private final AwsService awsService;
     private final Executor taskExecutor;
 
     public InventoryProductServiceImpl(InventoryProductRepository productRepository, InventoryProductImagesRepository imagesRepository,
-                                       InventorySubCategoryRepository subCategoryRepository, AwsService awsService,
-                                       @Qualifier("taskExecutor") Executor taskExecutor) {
+                                       InventorySubCategoryRepository subCategoryRepository, CustomerOrderItemRepository orderItemRepository,
+                                       AwsService awsService, @Qualifier("taskExecutor") Executor taskExecutor) {
         this.productRepository = productRepository;
         this.imagesRepository = imagesRepository;
         this.subCategoryRepository = subCategoryRepository;
+        this.orderItemRepository = orderItemRepository;
         this.awsService = awsService;
         this.taskExecutor = taskExecutor;
     }
@@ -67,6 +70,7 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
                 .description(product.getDescription())
                 .skuId(product.getSkuId())
                 .price(product.getPrice())
+                .sellingPrice(product.getSellingPrice())
                 .priceCurrency(product.getPriceCurrency())
                 .initialStock(product.getInitialStock())
                 .visibility(product.getVisibility())
@@ -91,6 +95,7 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
         existing.setDescription(product.getDescription());
         existing.setSkuId(product.getSkuId());
         existing.setPrice(product.getPrice());
+        existing.setSellingPrice(product.getSellingPrice());
         existing.setPriceCurrency(product.getPriceCurrency());
         existing.setInitialStock(product.getInitialStock());
         existing.setVisibility(product.getVisibility());
@@ -265,9 +270,13 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
         long lowStock        = stats[2] instanceof Long l ? l : ((Number) stats[2]).longValue();
         long outOfStock      = stats[3] instanceof Long l ? l : ((Number) stats[3]).longValue();
 
-        String topCategory   = topCat != null && topCat.length > 0 ? (String) topCat[0] : "—";
-        double topShare      = topCat != null && topCat.length > 2
+        String topCategory = topCat != null && topCat.length > 0 && topCat[0] != null ? (String) topCat[0] : "—";
+        double topShare    = topCat != null && topCat.length > 2 && topCat[2] != null
                 ? (topCat[2] instanceof Double d ? d : ((Number) topCat[2]).doubleValue()) : 0.0;
+
+        Long grossSalesRaw  = orderItemRepository.sumGrossSalesValue();
+        Long damageLossRaw  = orderItemRepository.sumDamageLossValue();
+        Long transitLossRaw = orderItemRepository.sumTransitLossValue();
 
         return InventoryStatsResponse.builder()
                 .totalStockValue(totalStockValue)
@@ -276,6 +285,9 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
                 .outOfStockCount(outOfStock)
                 .topCategory(topCategory)
                 .topCategoryShare(topShare)
+                .grossSalesValue(grossSalesRaw != null ? grossSalesRaw : 0L)
+                .damageLossValue(damageLossRaw != null ? damageLossRaw : 0L)
+                .transitLossValue(transitLossRaw != null ? transitLossRaw : 0L)
                 .build();
     }
 

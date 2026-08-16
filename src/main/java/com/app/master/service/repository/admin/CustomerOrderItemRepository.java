@@ -4,9 +4,11 @@ import com.app.master.service.core.entity.CustomerOrderItemEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -99,7 +101,8 @@ public interface CustomerOrderItemRepository extends JpaRepository<CustomerOrder
                    co.status,
                    co.order_placed_at,
                    coi.selected_dimension,
-                   coi.reason_for_return
+                   coi.reason_for_return,
+                   coi.return_condition
             FROM customer_order_item coi
             JOIN customer_order     co ON co.id   = coi.customer_order_id
             JOIN inventory_product  ip ON ip.uuid = coi.product_uuid
@@ -189,4 +192,40 @@ public interface CustomerOrderItemRepository extends JpaRepository<CustomerOrder
               AND (co.status = 'RETURNED' OR coi.reason_for_return IS NOT NULL)
             """)
     Long sumReturnedItemValue();
+
+    @Query(nativeQuery = true, value = """
+            SELECT COALESCE(SUM(ip.selling_price), 0)
+            FROM customer_order_item coi
+            JOIN customer_order co ON co.id = coi.customer_order_id
+            JOIN inventory_product ip ON ip.uuid = coi.product_uuid
+            WHERE coi.archive = false AND co.archive = false AND ip.archive = false
+              AND co.status IN ('ORDER_PLACED','IN_TRANSIT','DISPATCHED','DONE','DELIVERED')
+              AND coi.reason_for_return IS NULL
+            """)
+    Long sumGrossSalesValue();
+
+    @Query(nativeQuery = true, value = """
+            SELECT COALESCE(SUM(ip.price), 0)
+            FROM customer_order_item coi
+            JOIN inventory_product ip ON ip.uuid = coi.product_uuid
+            WHERE coi.archive = false AND ip.archive = false
+              AND coi.return_condition = 'DAMAGED'
+            """)
+    Long sumDamageLossValue();
+
+    @Query(nativeQuery = true, value = """
+            SELECT COALESCE(SUM(ip.price), 0)
+            FROM customer_order_item coi
+            JOIN inventory_product ip ON ip.uuid = coi.product_uuid
+            WHERE coi.archive = false AND ip.archive = false
+              AND coi.return_condition = 'LOST'
+            """)
+    Long sumTransitLossValue();
+
+    @Modifying
+    @Transactional
+    @Query(nativeQuery = true, value = """
+            UPDATE customer_order_item SET return_condition = :condition WHERE uuid = :uuid AND archive = false
+            """)
+    int updateReturnCondition(@Param("uuid") UUID uuid, @Param("condition") String condition);
 }

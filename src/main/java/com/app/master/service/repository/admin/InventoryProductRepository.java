@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,11 +19,75 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
 
     Optional<InventoryProductEntity> findByUuid(UUID productUuid);
 
+    @Query(nativeQuery = true, value = """
+            SELECT ip.id,
+                   ip.uuid,
+                   ip.name,
+                   ip.description,
+                   ip.price,
+                   ip.price_currency,
+                   ip.dimensions,
+                   ic.name AS category_name
+            FROM inventory_product ip
+            JOIN inventory_sub_category isc  ON isc.id  = ip.sub_category_id AND isc.archive  = false
+            JOIN inventory_collection   icol ON icol.id = isc.collection_id  AND icol.archive = false
+            JOIN inventory_category     ic   ON ic.id   = icol.category_id   AND ic.archive   = false
+            WHERE ip.archive = false
+              AND ip.active  = true
+              AND ip.draft   = false
+              AND ip.created >= :since
+            ORDER BY ip.created DESC
+            """)
+    List<Object[]> findNewArrivals(@Param("since") Instant since);
+
+    @Query(nativeQuery = true, value = """
+            SELECT ip.id,
+                   ip.uuid,
+                   ip.name,
+                   ip.description,
+                   ip.price,
+                   ip.price_currency,
+                   ip.dimensions,
+                   ic.name AS category_name,
+                   ip.selling_price
+            FROM inventory_product ip
+            JOIN inventory_sub_category isc  ON isc.id  = ip.sub_category_id AND isc.archive  = false
+            JOIN inventory_collection   icol ON icol.id = isc.collection_id  AND icol.archive = false
+            JOIN inventory_category     ic   ON ic.id   = icol.category_id   AND ic.archive   = false
+            WHERE ip.archive = false
+              AND ip.active  = true
+              AND ip.draft   = false
+            ORDER BY ip.created DESC
+            """)
+    List<Object[]> findAllProductsForClient();
+
+    @Query(nativeQuery = true, value = """
+            SELECT ip.id,
+                   ip.uuid,
+                   ip.name,
+                   ip.description,
+                   ip.price,
+                   ip.price_currency,
+                   ip.dimensions,
+                   ic.name  AS category_name,
+                   ip.selling_price,
+                   icol.name AS collection_name
+            FROM inventory_product ip
+            JOIN inventory_sub_category isc  ON isc.id  = ip.sub_category_id AND isc.archive  = false
+            JOIN inventory_collection   icol ON icol.id = isc.collection_id  AND icol.archive = false
+            JOIN inventory_category     ic   ON ic.id   = icol.category_id   AND ic.archive   = false
+            WHERE ip.uuid    = :uuid
+              AND ip.archive = false
+              AND ip.active  = true
+              AND ip.draft   = false
+            """)
+    List<Object[]> findProductByUuidForClient(@Param("uuid") UUID uuid);
+
     List<InventoryProductEntity> findByUuidInAndArchiveFalse(List<UUID> uuids);
 
     @Query(value = """
             SELECT new com.app.master.service.core.response.admin.InventoryProductListResponse(
-            ip.uuid, ip.name, ip.description, ip.skuId, ip.price, ip.priceCurrency,
+            ip.uuid, ip.name, ip.description, ip.skuId, ip.price, ip.sellingPrice, ip.priceCurrency,
             ip.initialStock, ip.visibility, ip.gender, ip.active, ip.dimensions, ip.supplierUuid
             )
             FROM InventoryProductEntity ip
@@ -30,12 +95,13 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
             AND (:search IS NULL
                  OR LOWER(ip.name) LIKE CONCAT('%', LOWER(:search), '%')
                  OR LOWER(ip.skuId) LIKE CONCAT('%', LOWER(:search), '%'))
+            ORDER BY ip.created DESC
             """)
     Page<InventoryProductListResponse> getInventoryProductList(@Param("search") String search, Pageable pageable);
 
     @Query(value = """
             SELECT new com.app.master.service.core.response.admin.InventoryProductListResponse(
-            ip.uuid, ip.name, ip.description, ip.skuId, ip.price, ip.priceCurrency,
+            ip.uuid, ip.name, ip.description, ip.skuId, ip.price, ip.sellingPrice, ip.priceCurrency,
             ip.initialStock, ip.visibility, ip.gender, ip.active, ip.dimensions, ip.supplierUuid
             )
             FROM InventoryProductEntity ip
@@ -45,6 +111,7 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
             AND (:search IS NULL
                  OR LOWER(ip.name) LIKE CONCAT('%', LOWER(:search), '%')
                  OR LOWER(ip.skuId) LIKE CONCAT('%', LOWER(:search), '%'))
+            ORDER BY ip.created DESC
             """)
     Page<InventoryProductListResponse> getInventoryProductListBySubCategory(@Param("subCategoryUuid") UUID subCategoryUuid, @Param("search") String search, Pageable pageable);
 
@@ -63,8 +130,12 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
                 COUNT(CASE
                     WHEN coi.id IS NOT NULL
                          AND (co.status = 'RETURNED' OR coi.reason_for_return IS NOT NULL)
+                         AND coi.return_condition = 'PRODUCT_OK'
                     THEN 1 END)                                      AS returned,
-                0                                                    AS damaged,
+                COUNT(CASE
+                    WHEN coi.id IS NOT NULL
+                         AND coi.return_condition IN ('DAMAGED', 'LOST')
+                    THEN 1 END)                                      AS damaged,
                 GREATEST(0,
                     COALESCE(ip.initial_stock, 0)
                     - COUNT(CASE
@@ -88,6 +159,51 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
             ORDER BY ic.name, icol.name, isc.name, ip.name
             """)
     List<Object[]> findPerformanceLedger();
+
+    @Query(nativeQuery = true, value = """
+            SELECT ip.id,
+                   ip.uuid,
+                   ip.name,
+                   ip.description,
+                   ip.price,
+                   ip.price_currency,
+                   ip.dimensions,
+                   ic.name         AS category_name,
+                   ip.selling_price,
+                   COUNT(coi.id)   AS demand_count
+            FROM inventory_product ip
+            JOIN inventory_sub_category isc  ON isc.id  = ip.sub_category_id AND isc.archive  = false
+            JOIN inventory_collection   icol ON icol.id = isc.collection_id  AND icol.archive = false
+            JOIN inventory_category     ic   ON ic.id   = icol.category_id   AND ic.archive   = false
+            LEFT JOIN customer_order_item coi ON coi.product_uuid = ip.uuid AND coi.archive = false
+            LEFT JOIN customer_order      co  ON co.id = coi.customer_order_id AND co.archive = false
+                 AND co.status NOT IN ('RETURNED','CANCELLED') AND coi.reason_for_return IS NULL
+            WHERE ip.archive = false
+              AND ip.active  = true
+              AND ip.draft   = false
+            GROUP BY ip.id, ip.uuid, ip.name, ip.description, ip.price, ip.price_currency,
+                     ip.dimensions, ic.name, ip.selling_price, ip.created
+            ORDER BY demand_count DESC, ip.created DESC
+            LIMIT :limit OFFSET :offset
+            """)
+    List<Object[]> findPopularProducts(@Param("limit") int limit, @Param("offset") int offset);
+
+    @Query(nativeQuery = true, value = """
+            SELECT ic.name AS category_name,
+                   (SELECT ipi.image
+                    FROM inventory_product_images ipi
+                    JOIN inventory_product ip2 ON ip2.id = ipi.product_id AND ip2.archive = false
+                       AND ip2.active = true AND ip2.draft = false
+                    JOIN inventory_sub_category isc2 ON isc2.id = ip2.sub_category_id AND isc2.archive = false
+                    JOIN inventory_collection icol2 ON icol2.id = isc2.collection_id AND icol2.archive = false
+                    WHERE icol2.category_id = ic.id
+                    ORDER BY ip2.created DESC, ipi.id ASC
+                    LIMIT 1) AS image_url
+            FROM inventory_category ic
+            WHERE ic.archive = false
+            ORDER BY ic.name
+            """)
+    List<Object[]> findCategoriesWithLatestImage();
 
     @Query(nativeQuery = true, value = """
             SELECT

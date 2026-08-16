@@ -8,6 +8,10 @@ import com.app.master.service.service.admin.ReturnsService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
 @RestController
 @CrossOrigin(origins = {"*"})
 @RequestMapping("/api/master/returns")
@@ -44,5 +48,17 @@ public class ReturnsController extends AppController {
     @GetMapping("/reasons")
     public ResponseEntity<Response> reasons() throws VeloriaException {
         return data(ResponseCode.FETCHED, "Return reasons fetched successfully", service.getReasons());
+    }
+
+    @PutMapping("/{itemUuid}/condition")
+    public ResponseEntity<Response> setCondition(
+            @PathVariable UUID itemUuid,
+            @RequestBody Map<String, String> body) throws VeloriaException {
+        String condition = body.get("condition");
+        if (condition == null || !List.of("PRODUCT_OK", "DAMAGED", "LOST").contains(condition)) {
+            throw new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid condition. Must be PRODUCT_OK, DAMAGED, or LOST");
+        }
+        service.setReturnCondition(itemUuid, condition);
+        return success(ResponseCode.UPDATED, "Return condition updated successfully");
     }
 }

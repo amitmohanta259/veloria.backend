@@ -53,6 +53,7 @@ public class WebSecurityConfig extends AppService {
                         "/api/master/client/login/password",
                         "/api/master/client/login/send-otp",
                         "/api/master/client/login/verify-otp",
+                        "/api/master/client/products/new-in",
                         "/api/master/reset-password",
                         "/api/master/forgot-password",
                         "/api/master/forgot-password/resend",

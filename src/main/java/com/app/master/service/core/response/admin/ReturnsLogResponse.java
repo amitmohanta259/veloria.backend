@@ -24,5 +24,6 @@ public class ReturnsLogResponse {
     private String status;
     private String selectedDimension;
     private String reasonForReturn;
+    private String returnCondition;
     private Instant orderPlacedAt;
 }

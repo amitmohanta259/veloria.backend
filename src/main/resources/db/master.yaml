@@ -71,3 +71,19 @@ databaseChangeLog:
       file: db/changesets/UserPasswordHash.yaml
   - include:
       file: db/changesets/UserAddress.yaml
+  - include:
+      file: db/changesets/FixProductImages.yaml
+  - include:
+      file: db/changesets/BagProductImages.yaml
+  - include:
+      file: db/changesets/AddSellingPrice.yaml
+  - include:
+      file: db/changesets/ReturnCondition.yaml
+  - include:
+      file: db/changesets/CustomerCart.yaml
+  - include:
+      file: db/changesets/CustomerFavourite.yaml
+  - include:
+      file: db/changesets/CustomerBag.yaml
+  - include:
+      file: db/changesets/ClientSession.yaml

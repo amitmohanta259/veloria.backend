@@ -3,6 +3,7 @@ package com.app.master.service.core.response.admin;
 import com.app.master.service.core.enums.InventoryCurrency;
 import com.app.master.service.core.enums.InventoryGender;
 import com.app.master.service.core.enums.InventoryVisibility;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,6 +12,7 @@ import java.util.UUID;
 
 @Getter
 @Setter
+@JsonInclude(JsonInclude.Include.ALWAYS)
 public class InventoryProductListResponse {
 
     private UUID uuid;
@@ -18,6 +20,7 @@ public class InventoryProductListResponse {
     private String description;
     private String skuId;
     private Long price;
+    private Long sellingPrice;
     private InventoryCurrency priceCurrency;
     private Long initialStock;
     private InventoryVisibility visibility;
@@ -27,7 +30,7 @@ public class InventoryProductListResponse {
     private UUID supplierUuid;
     private List<String> images;
 
-    public InventoryProductListResponse(UUID uuid, String name, String description, String skuId, Long price,
+    public InventoryProductListResponse(UUID uuid, String name, String description, String skuId, Long price, Long sellingPrice,
                                         InventoryCurrency priceCurrency, Long initialStock, InventoryVisibility visibility,
                                         InventoryGender gender, Boolean activeStatus, String dimensions, UUID supplierUuid) {
         this.uuid = uuid;
@@ -35,6 +38,7 @@ public class InventoryProductListResponse {
         this.description = description;
         this.skuId = skuId;
         this.price = price;
+        this.sellingPrice = sellingPrice;
         this.priceCurrency = priceCurrency;
         this.initialStock = initialStock;
         this.visibility = visibility;

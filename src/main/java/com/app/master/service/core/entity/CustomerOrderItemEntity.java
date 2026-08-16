@@ -30,6 +30,7 @@ public class CustomerOrderItemEntity extends Base {
     private String comment;
     private Integer rating;
     private String reasonForReturn;
+    private String returnCondition;
 
     @Builder.Default
     private Boolean active = Boolean.TRUE;

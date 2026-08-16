@@ -7,6 +7,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableFeignClients
@@ -26,6 +27,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @EntityScan(basePackages = {"com.app.master.service.core.entity"})
 @EnableJpaRepositories(basePackages = {"com.app.master.service.repository"})
 @EnableAsync
+@EnableScheduling
 public class MasterServiceApplication {
 
 	public static void main(String[] args) {

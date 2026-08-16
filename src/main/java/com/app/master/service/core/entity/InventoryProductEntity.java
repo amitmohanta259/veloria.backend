@@ -33,6 +33,8 @@ public class InventoryProductEntity extends Base {
     private String description;
     private String skuId;
     private Long price;
+    @Column(name = "selling_price")
+    private Long sellingPrice;
     private String dimensions;
 
     @Enumerated(EnumType.STRING)
@@ -64,6 +66,7 @@ public class InventoryProductEntity extends Base {
                 .description(this.description)
                 .skuId(this.skuId)
                 .price(this.price)
+                .sellingPrice(this.sellingPrice)
                 .priceCurrency(this.priceCurrency)
                 .initialStock(this.initialStock)
                 .visibility(this.visibility)

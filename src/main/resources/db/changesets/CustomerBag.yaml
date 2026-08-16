@@ -1,0 +1,60 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_customer_bag_table
+      author: veloria
+      changes:
+        - createTable:
+            tableName: customer_bag
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: uuid
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: user_id
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: product_uuid
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: quantity
+                  type: INTEGER
+                  defaultValueNumeric: 1
+                  constraints:
+                    nullable: false
+              - column:
+                  name: added_at
+                  type: TIMESTAMP
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+              - column:
+                  name: archive
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+        - createIndex:
+            indexName: idx_customer_bag_user_id
+            tableName: customer_bag
+            columns:
+              - column:
+                  name: user_id
+        - createIndex:
+            indexName: idx_customer_bag_user_product
+            tableName: customer_bag
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: product_uuid

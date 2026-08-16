@@ -1,6 +1,7 @@
 package com.app.master.service.service.admin.impl;
 
 import com.app.master.service.core.exception.VeloriaException;
+import com.app.master.service.core.response.ResponseCode;
 import com.app.master.service.core.response.admin.ReturnReasonResponse;
 import com.app.master.service.core.response.admin.ReturnTrendPointResponse;
 import com.app.master.service.core.response.admin.ReturnsLogResponse;
@@ -18,6 +19,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+
 
 @Service
 public class ReturnsServiceImpl extends AppService implements ReturnsService {
@@ -94,6 +96,7 @@ public class ReturnsServiceImpl extends AppService implements ReturnsService {
         Instant placedAt       = row[10] instanceof Timestamp ts ? ts.toInstant() : (Instant) row[10];
         String selectedDim     = (String) row[11];
         String reasonForReturn = (String) row[12];
+        String returnCondition = (String) row[13];
 
         return ReturnsLogResponse.builder()
                 .itemUuid(itemUuid)
@@ -108,7 +111,16 @@ public class ReturnsServiceImpl extends AppService implements ReturnsService {
                 .status(status)
                 .selectedDimension(selectedDim)
                 .reasonForReturn(reasonForReturn)
+                .returnCondition(returnCondition)
                 .orderPlacedAt(placedAt)
                 .build();
+    }
+
+    @Override
+    public void setReturnCondition(UUID itemUuid, String condition) throws VeloriaException {
+        int updated = itemRepository.updateReturnCondition(itemUuid, condition);
+        if (updated == 0) {
+            throw new VeloriaException(ResponseCode.BAD_REQUEST, "Return item not found");
+        }
     }
 }

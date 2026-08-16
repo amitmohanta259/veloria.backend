@@ -10,4 +10,7 @@ public class InventoryStatsResponse {
     private long outOfStockCount;
     private String topCategory;
     private double topCategoryShare;
+    private long grossSalesValue;
+    private long damageLossValue;
+    private long transitLossValue;
 }
