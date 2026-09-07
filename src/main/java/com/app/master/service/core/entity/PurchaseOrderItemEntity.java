@@ -29,4 +29,7 @@ public class PurchaseOrderItemEntity extends Base {
     private Long unitCost;
     private Integer quantity;
     private Long lineTotal;
+
+    /** Prefills the HSN when a vendor invoice is recorded from this order. */
+    private String hsnCode;
 }

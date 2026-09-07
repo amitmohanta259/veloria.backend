@@ -13,6 +13,9 @@ public class AddressBookEntry {
     private String receiverName;
     private String phone;
     private String address;
+    private String city;
+    private String stateCode;
+    private String pincode;
     @JsonProperty("isDefault")
     private boolean isDefault;
 }

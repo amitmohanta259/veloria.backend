@@ -1,0 +1,30 @@
+databaseChangeLog:
+
+  # ── A vendor invoice need not have a purchase order behind it ─────────────
+  # gst_input_tax was created assuming every input credit originated from a
+  # purchase order raised in this system. A vendor tax invoice frequently
+  # arrives without one — an ad-hoc purchase, a service bill, a correction —
+  # and the credit is claimable all the same. The columns become optional so a
+  # purchase invoice can create its own input-tax record; nothing that already
+  # sets them changes.
+  - changeSet:
+      id: gst-phase10-001-input-tax-purchase-order-optional
+      author: veloria
+      changes:
+        - dropNotNullConstraint:
+            tableName: gst_input_tax
+            columnName: purchase_order_id
+            columnDataType: bigint
+        - dropNotNullConstraint:
+            tableName: gst_input_tax
+            columnName: purchase_order_uuid
+            columnDataType: uuid
+      rollback:
+        - addNotNullConstraint:
+            tableName: gst_input_tax
+            columnName: purchase_order_id
+            columnDataType: bigint
+        - addNotNullConstraint:
+            tableName: gst_input_tax
+            columnName: purchase_order_uuid
+            columnDataType: uuid

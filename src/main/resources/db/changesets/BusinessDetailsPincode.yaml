@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: BusinessDetailsPincode-1
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: business_details
+            columns:
+              - column:
+                  name: pincode
+                  type: varchar(10)

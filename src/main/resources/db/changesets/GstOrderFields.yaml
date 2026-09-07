@@ -1,0 +1,36 @@
+databaseChangeLog:
+  - changeSet:
+      id: add_gst_fields_to_customer_order
+      author: admin
+      changes:
+        - addColumn:
+            tableName: customer_order
+            columns:
+              - column:
+                  name: taxable_value
+                  type: bigint
+              - column:
+                  name: cgst_amount
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: sgst_amount
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: igst_amount
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: total_tax_amount
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: buyer_state_code
+                  type: varchar(2)
+              - column:
+                  name: seller_state_code
+                  type: varchar(2)
+              - column:
+                  name: place_of_supply
+                  type: varchar(100)

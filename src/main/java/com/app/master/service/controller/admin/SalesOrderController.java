@@ -6,9 +6,11 @@ import com.app.master.service.core.exception.VeloriaException;
 import com.app.master.service.core.response.Response;
 import com.app.master.service.core.response.ResponseCode;
 import com.app.master.service.service.admin.SalesOrderService;
+import lombok.Data;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -48,5 +50,30 @@ public class SalesOrderController extends AppController {
     @GetMapping("/stats")
     public ResponseEntity<Response> stats() throws VeloriaException {
         return data(ResponseCode.FETCHED, "Sales stats fetched successfully", service.getStats());
+    }
+
+    @PatchMapping("/order/{orderCode}/status")
+    public ResponseEntity<Response> updateStatus(
+            @PathVariable String orderCode,
+            @RequestBody Map<String, String> body) throws VeloriaException {
+        String newStatus = body.get("status");
+        if (newStatus == null || newStatus.isBlank()) {
+            return success(ResponseCode.BAD_REQUEST, "status is required", null);
+        }
+        service.updateOrderStatus(orderCode, newStatus);
+        return success(ResponseCode.OK, "Order status updated", null);
+    }
+
+    @PostMapping("/order/{orderCode}/cancel")
+    public ResponseEntity<Response> cancelOrder(
+            @PathVariable String orderCode,
+            @RequestBody Map<String, String> body) throws VeloriaException {
+        service.cancelOrder(orderCode, body.getOrDefault("reason", ""));
+        return success(ResponseCode.OK, "Order cancelled", null);
+    }
+
+    @GetMapping("/report")
+    public ResponseEntity<Response> report() throws VeloriaException {
+        return data(ResponseCode.FETCHED, "Sales report fetched", service.reportAll());
     }
 }

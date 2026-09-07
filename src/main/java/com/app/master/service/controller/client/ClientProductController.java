@@ -45,4 +45,9 @@ public class ClientProductController extends AppController {
     public ResponseEntity<Response> getCategories() {
         return success(ResponseCode.OK, "Categories fetched", clientProductService.getCategories());
     }
+
+    @GetMapping("/products/{uuid}/sizes")
+    public ResponseEntity<Response> getProductSizes(@PathVariable UUID uuid) throws VeloriaException {
+        return success(ResponseCode.OK, "Product sizes fetched", clientProductService.getProductSizes(uuid));
+    }
 }

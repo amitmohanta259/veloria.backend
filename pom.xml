@@ -66,10 +66,15 @@
         </dependency>
 
         <!-- PDF support -->
+        <!--
+          3.0.3+ fixes an NPE in FileSystemFontProvider when scanning macOS
+          .ttc font collections (OpenTypeFont.getCFF() returns null), which
+          crashed any attempt to construct a Standard-14 font for PDF writing.
+        -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
-            <version>3.0.0</version>
+            <version>3.0.3</version>
         </dependency>
 
         <dependency>
@@ -221,6 +226,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <mainClass>com.app.master.service.MasterServiceApplication</mainClass>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>

@@ -1,0 +1,13 @@
+databaseChangeLog:
+  - changeSet:
+      id: add-delivered-at-to-customer-order
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: customer_order
+            columns:
+              - column:
+                  name: delivered_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: true

@@ -3,15 +3,23 @@ package com.app.master.service.service.client.impl;
 import com.app.master.service.core.entity.InventoryProductImagesEntity;
 import com.app.master.service.core.exception.VeloriaException;
 import com.app.master.service.core.response.ResponseCode;
+
+import java.util.Arrays;
 import com.app.master.service.core.response.client.ClientCategoryResponse;
 import com.app.master.service.core.response.client.ClientProductDetailResponse;
 import com.app.master.service.core.response.client.NewArrivalProductResponse;
+import com.app.master.service.core.response.client.ProductSizesResponse;
+import com.app.master.service.core.dto.SizeStock;
+import com.app.master.service.core.service.AwsService;
 import com.app.master.service.repository.admin.InventoryProductImagesRepository;
 import com.app.master.service.repository.admin.InventoryProductRepository;
+import com.app.master.service.repository.admin.InventoryProductSizeStockRepository;
 import com.app.master.service.service.client.ClientProductService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -19,10 +27,23 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ClientProductServiceImpl implements ClientProductService {
 
     private final InventoryProductRepository productRepository;
     private final InventoryProductImagesRepository imagesRepository;
+    private final InventoryProductSizeStockRepository sizeStockRepository;
+    private final AwsService awsService;
+
+    private String presign(String key) {
+        if (key == null) return null;
+        try {
+            return awsService.getViewablePreSignedUrl(key);
+        } catch (IOException e) {
+            log.warn("Failed to presign image key: {}", key, e);
+            return key;
+        }
+    }
 
     @Override
     public List<NewArrivalProductResponse> getNewArrivals() {
@@ -49,6 +70,7 @@ public class ClientProductServiceImpl implements ClientProductService {
         List<String> imageUrls = images.stream()
                 .map(InventoryProductImagesEntity::getImage)
                 .filter(Objects::nonNull)
+                .map(this::presign)
                 .collect(Collectors.toList());
 
         String mainImage = imageUrls.isEmpty() ? null : imageUrls.get(0);
@@ -99,7 +121,7 @@ public class ClientProductServiceImpl implements ClientProductService {
             firstImageByUuid.putIfAbsent(productUuid, (String) imageRow[1]);
         }
 
-        results.forEach(r -> r.setImage(firstImageByUuid.get(r.getUuid())));
+        results.forEach(r -> r.setImage(presign(firstImageByUuid.get(r.getUuid()))));
         return results;
     }
 
@@ -115,9 +137,26 @@ public class ClientProductServiceImpl implements ClientProductService {
         return rows.stream().map(row -> ClientCategoryResponse.builder()
                 .name((String) row[0])
                 .category(mapCategory((String) row[0]))
-                .image(row[1] != null ? row[1].toString() : null)
+                .image(row[1] != null ? presign(row[1].toString()) : null)
                 .build()
         ).collect(Collectors.toList());
+    }
+
+    @Override
+    public ProductSizesResponse getProductSizes(UUID productUuid) throws VeloriaException {
+        return productRepository.findByUuid(productUuid)
+                .filter(p -> Boolean.FALSE.equals(p.getArchive()))
+                .map(p -> {
+                    List<Object[]> rows = sizeStockRepository.findCurrentStockByProductId(p.getId());
+                    List<SizeStock> sizes = rows.stream().map(row -> SizeStock.builder()
+                            .size((String) row[0])
+                            .stock(row[1] instanceof Long l ? l : ((Number) row[1]).longValue())
+                            .currentStock(row[2] instanceof Long l ? l : ((Number) row[2]).longValue())
+                            .build()).collect(Collectors.toList());
+                    boolean inStock = sizes.stream().anyMatch(s -> s.getCurrentStock() != null && s.getCurrentStock() > 0);
+                    return ProductSizesResponse.builder().sizes(sizes).inStock(inStock).build();
+                })
+                .orElseThrow(() -> new VeloriaException(ResponseCode.NOT_FOUND, "Product not found"));
     }
 
     private static String mapCategory(String categoryName) {

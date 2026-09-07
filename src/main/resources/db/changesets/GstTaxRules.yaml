@@ -1,0 +1,88 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_gst_tax_rules
+      author: admin
+      changes:
+        - createTable:
+            tableName: gst_tax_rules
+            columns:
+              - column:
+                  name: id
+                  type: bigserial
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: uuid
+                  type: uuid
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: hsn_code
+                  type: varchar(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: hsn_match_type
+                  type: varchar(10)
+                  defaultValue: 'PREFIX'
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: varchar(500)
+              - column:
+                  name: min_price_paise
+                  type: bigint
+              - column:
+                  name: max_price_paise
+                  type: bigint
+              - column:
+                  name: cgst_rate_bp
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sgst_rate_bp
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: igst_rate_bp
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: priority
+                  type: int
+                  defaultValueNumeric: 100
+                  constraints:
+                    nullable: false
+              - column:
+                  name: effective_from
+                  type: date
+                  constraints:
+                    nullable: false
+              - column:
+                  name: effective_to
+                  type: date
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+              - column:
+                  name: created
+                  type: timestamp
+              - column:
+                  name: modified
+                  type: timestamp
+        - createIndex:
+            tableName: gst_tax_rules
+            indexName: idx_gst_tax_rules_hsn
+            columns:
+              - column:
+                  name: hsn_code

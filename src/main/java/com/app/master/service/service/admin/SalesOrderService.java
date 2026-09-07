@@ -6,6 +6,7 @@ import com.app.master.service.core.response.admin.SalesOrderResponse;
 import com.app.master.service.core.response.admin.SalesStatsResponse;
 import org.springframework.data.domain.Page;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface SalesOrderService {
@@ -17,4 +18,10 @@ public interface SalesOrderService {
     Page<SalesOrderResponse> allOrders(String status, Integer month, Integer year, String search, int page, int pageSize) throws VeloriaException;
 
     SalesStatsResponse getStats() throws VeloriaException;
+
+    void updateOrderStatus(String orderCode, String newStatus) throws VeloriaException;
+
+    void cancelOrder(String orderCode, String reason) throws VeloriaException;
+
+    List<SalesOrderResponse> reportAll() throws VeloriaException;
 }

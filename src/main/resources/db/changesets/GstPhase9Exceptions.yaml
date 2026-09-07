@@ -1,0 +1,50 @@
+databaseChangeLog:
+
+  # ── Reviewable GST exceptions ────────────────────────────────────────────
+  # gst_accounting_exception already records operations that failed at runtime.
+  # Historical data review needs the same record to carry a classification, a
+  # severity, the period it belongs to and a review trail — so the existing
+  # table is extended rather than a second exception store being created.
+  - changeSet:
+      id: gst-phase9-001-exception-classification
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: gst_accounting_exception
+            columns:
+              - column: { name: exception_type, type: varchar(64) }
+              - column: { name: severity, type: varchar(16) }
+              - column: { name: tax_period, type: varchar(16) }
+              - column: { name: gst_registration_id, type: bigint }
+              - column: { name: reviewed_by, type: varchar(255) }
+              - column: { name: reviewed_at, type: timestamptz }
+              - column: { name: review_comments, type: text }
+
+  # Detected exceptions are keyed by what they are about, so a repeated scan
+  # updates the existing row instead of stacking duplicates. Restricted to rows
+  # a detector produced (exception_type set) so runtime-failure rows written by
+  # the audit service, which have no type, are unaffected.
+  - changeSet:
+      id: gst-phase9-002-detected-exception-idempotency
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_gst_exception_detected
+              ON gst_accounting_exception (organization_id, exception_type, source_document_number)
+              WHERE exception_type IS NOT NULL
+      rollback:
+        - sql:
+            sql: DROP INDEX IF EXISTS ux_gst_exception_detected
+
+  - changeSet:
+      id: gst-phase9-003-exception-lookup-index
+      author: veloria
+      changes:
+        - createIndex:
+            tableName: gst_accounting_exception
+            indexName: ix_gst_exception_status_period
+            columns:
+              - column: { name: organization_id }
+              - column: { name: status }
+              - column: { name: tax_period }

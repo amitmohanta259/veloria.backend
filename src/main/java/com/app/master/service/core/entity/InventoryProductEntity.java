@@ -52,6 +52,13 @@ public class InventoryProductEntity extends Base {
     private InventoryGender gender;
 
     private UUID supplierUuid;
+    private String colour;
+
+    @Column(name = "wear_type")
+    private String wearType;
+
+    @Column(name = "hsn_code")
+    private String hsnCode;
 
     @Builder.Default
     private Boolean active = Boolean.TRUE;
@@ -74,6 +81,9 @@ public class InventoryProductEntity extends Base {
                 .gender(this.gender)
                 .dimensions(this.dimensions)
                 .supplierUuid(this.supplierUuid)
+                .colour(this.colour)
+                .wearType(this.wearType)
+                .hsnCode(this.hsnCode)
                 .build();
     }
 

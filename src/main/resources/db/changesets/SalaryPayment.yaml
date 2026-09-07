@@ -1,0 +1,212 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-salary-payment-tables
+      author: admin
+      changes:
+        - createTable:
+            tableName: salary_payment
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: uuid
+                  type: uuid
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: voucher_number
+                  type: varchar(50)
+                  constraints:
+                    unique: true
+              - column:
+                  name: payment_month
+                  type: varchar(10)
+              - column:
+                  name: total_gross_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: total_net_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: total_employer_contribution_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: total_employee_contribution_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: employee_count
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: status
+                  type: varchar(50)
+                  defaultValue: PENDING
+              - column:
+                  name: notes
+                  type: text
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+
+        - createTable:
+            tableName: salary_payment_detail
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: salary_payment_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: staff_name
+                  type: varchar(255)
+              - column:
+                  name: staff_code
+                  type: varchar(50)
+              - column:
+                  name: designation
+                  type: varchar(255)
+              - column:
+                  name: basic_salary_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: gross_salary_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: net_salary_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: employer_pf_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: employee_pf_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: employer_esi_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: employee_esi_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: total_deductions_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: working_days
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: days_worked
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: paid_leave_taken
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: lop_days
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: leaves_approved
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: leaves_pending
+                  type: integer
+                  defaultValueNumeric: 0
+              - column:
+                  name: leaves_rejected
+                  type: integer
+                  defaultValueNumeric: 0
+
+        - addForeignKeyConstraint:
+            baseTableName: salary_payment_detail
+            baseColumnNames: salary_payment_id
+            constraintName: fk_salary_detail_payment
+            referencedTableName: salary_payment
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+  - changeSet:
+      id: seed-salary-payments
+      author: admin
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO salary_payment (uuid, voucher_number, payment_month, total_gross_paise, total_net_paise,
+                total_employer_contribution_paise, total_employee_contribution_paise,
+                employee_count, status, notes, created_at, updated_at)
+              VALUES
+              (
+                'b2000001-0001-0001-0001-000000000001',
+                'SAL-2026-0002', '2026-07',
+                19000000, 16720000, 2280000, 2280000,
+                4, 'PAID',
+                'July 2026 Salary — Payment made against employee salaries for 4 staff members',
+                NOW(), NOW()
+              ),
+              (
+                'b2000002-0002-0002-0002-000000000002',
+                'SAL-2026-0001', '2026-08',
+                18800000, 16020000, 2280000, 2280000,
+                4, 'PENDING',
+                'August 2026 Salary — Payment made against employee salaries for 4 staff members',
+                NOW(), NOW()
+              )
+              ON CONFLICT (uuid) DO NOTHING;
+
+              INSERT INTO salary_payment_detail (
+                salary_payment_id, staff_name, staff_code, designation,
+                basic_salary_paise, gross_salary_paise, net_salary_paise,
+                employer_pf_paise, employee_pf_paise, employer_esi_paise, employee_esi_paise,
+                total_deductions_paise,
+                working_days, days_worked, paid_leave_taken, lop_days,
+                leaves_approved, leaves_pending, leaves_rejected
+              )
+              SELECT
+                p.id,
+                v.staff_name, v.staff_code, v.designation,
+                v.basic_salary_paise, v.gross_salary_paise, v.net_salary_paise,
+                v.employer_pf_paise, v.employee_pf_paise, 0, 0,
+                v.employee_pf_paise,
+                v.working_days, v.days_worked, v.paid_leave_taken, v.lop_days,
+                v.leaves_approved, v.leaves_pending, v.leaves_rejected
+              FROM salary_payment p
+              JOIN (VALUES
+                ('SAL-2026-0002', 'Priya Sharma',   'STF-001', 'Senior Designer',   4500000, 4500000, 3960000, 540000, 540000, 23, 23, 1, 0, 1, 0, 0),
+                ('SAL-2026-0002', 'Rahul Kumar',    'STF-002', 'Sales Manager',      5500000, 5500000, 4840000, 660000, 660000, 23, 23, 0, 0, 0, 0, 1),
+                ('SAL-2026-0002', 'Anjali Singh',   'STF-003', 'Operations Lead',    4000000, 4000000, 3520000, 480000, 480000, 23, 23, 2, 0, 2, 0, 0),
+                ('SAL-2026-0002', 'Vikram Mehta',   'STF-004', 'Frontend Developer', 5000000, 5000000, 4400000, 600000, 600000, 23, 23, 0, 0, 0, 1, 0),
+                ('SAL-2026-0001', 'Priya Sharma',   'STF-001', 'Senior Designer',   4500000, 4500000, 3960000, 540000, 540000, 22, 22, 1, 0, 1, 0, 0),
+                ('SAL-2026-0001', 'Rahul Kumar',    'STF-002', 'Sales Manager',      5500000, 5000000, 4340000, 660000, 660000, 22, 20, 0, 2, 0, 0, 1),
+                ('SAL-2026-0001', 'Anjali Singh',   'STF-003', 'Operations Lead',    4000000, 4000000, 3520000, 480000, 480000, 22, 22, 2, 0, 2, 0, 0),
+                ('SAL-2026-0001', 'Vikram Mehta',   'STF-004', 'Frontend Developer', 5000000, 4800000, 4200000, 600000, 600000, 22, 21, 0, 1, 0, 1, 0)
+              ) AS v(voucher, staff_name, staff_code, designation, basic_salary_paise, gross_salary_paise, net_salary_paise, employer_pf_paise, employee_pf_paise, working_days, days_worked, paid_leave_taken, lop_days, leaves_approved, leaves_pending, leaves_rejected)
+              ON p.voucher_number = v.voucher;

@@ -1,0 +1,36 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_inventory_product_size_stock
+      author: admin
+      changes:
+        - createTable:
+            tableName: inventory_product_size_stock
+            columns:
+              - column:
+                  name: id
+                  type: bigserial
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: product_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: size
+                  type: varchar(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: initial_stock
+                  type: bigint
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: archive
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false

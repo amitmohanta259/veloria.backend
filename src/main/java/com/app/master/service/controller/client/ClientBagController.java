@@ -37,17 +37,32 @@ public class ClientBagController extends AppController {
     public ResponseEntity<Response> updateQuantity(
             @RequestHeader("Authorization") String authHeader,
             @PathVariable UUID productUuid,
-            @RequestParam int quantity) throws VeloriaException {
-        bagService.updateQuantity(token(authHeader), productUuid, quantity);
+            @RequestParam int quantity,
+            @RequestParam(required = false) String size) throws VeloriaException {
+        bagService.updateQuantity(token(authHeader), productUuid, quantity, size);
         return success(ResponseCode.OK, "Quantity updated", null);
     }
 
     @DeleteMapping("/{productUuid}")
     public ResponseEntity<Response> removeFromBag(
             @RequestHeader("Authorization") String authHeader,
-            @PathVariable UUID productUuid) throws VeloriaException {
-        bagService.removeFromBag(token(authHeader), productUuid);
+            @PathVariable UUID productUuid,
+            @RequestParam(required = false) String size) throws VeloriaException {
+        bagService.removeFromBag(token(authHeader), productUuid, size);
         return success(ResponseCode.OK, "Removed from bag", null);
+    }
+
+    @DeleteMapping
+    public ResponseEntity<Response> clearBag(
+            @RequestHeader("Authorization") String authHeader) throws VeloriaException {
+        bagService.clearBag(token(authHeader));
+        return success(ResponseCode.OK, "Bag cleared", null);
+    }
+
+    @GetMapping("/gst-preview")
+    public ResponseEntity<Response> getGstPreview(
+            @RequestHeader("Authorization") String authHeader) throws VeloriaException {
+        return success(ResponseCode.OK, "GST preview calculated", bagService.getGstPreview(token(authHeader)));
     }
 
     private String token(String authHeader) {

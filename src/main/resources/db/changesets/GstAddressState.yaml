@@ -1,0 +1,17 @@
+databaseChangeLog:
+  - changeSet:
+      id: add_state_fields_to_user_address
+      author: admin
+      changes:
+        - addColumn:
+            tableName: user_address
+            columns:
+              - column:
+                  name: city
+                  type: varchar(100)
+              - column:
+                  name: state_code
+                  type: varchar(2)
+              - column:
+                  name: pincode
+                  type: varchar(10)

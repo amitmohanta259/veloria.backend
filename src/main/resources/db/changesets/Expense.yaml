@@ -1,0 +1,187 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-expense-tables
+      author: admin
+      changes:
+        - createTable:
+            tableName: expense
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: uuid
+                  type: uuid
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: voucher_number
+                  type: varchar(50)
+                  constraints:
+                    unique: true
+              - column:
+                  name: expense_type
+                  type: varchar(100)
+              - column:
+                  name: expense_date
+                  type: date
+              - column:
+                  name: supplier_name
+                  type: varchar(255)
+              - column:
+                  name: supplier_gstin
+                  type: varchar(100)
+              - column:
+                  name: supplier_state
+                  type: varchar(100)
+              - column:
+                  name: invoice_number
+                  type: varchar(100)
+              - column:
+                  name: invoice_date
+                  type: date
+              - column:
+                  name: subtotal_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: tax_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: total_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: status
+                  type: varchar(50)
+                  defaultValue: PENDING
+              - column:
+                  name: notes
+                  type: text
+              - column:
+                  name: created_at
+                  type: timestamp with time zone
+              - column:
+                  name: updated_at
+                  type: timestamp with time zone
+
+        - createTable:
+            tableName: expense_line_item
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: expense_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: text
+              - column:
+                  name: hsn_code
+                  type: varchar(50)
+              - column:
+                  name: quantity
+                  type: numeric(10,2)
+                  defaultValueNumeric: 1
+              - column:
+                  name: rate_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: gst_rate
+                  type: numeric(5,2)
+                  defaultValueNumeric: 18
+              - column:
+                  name: line_total_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+
+        - addForeignKeyConstraint:
+            baseTableName: expense_line_item
+            baseColumnNames: expense_id
+            constraintName: fk_expense_line_item_expense
+            referencedTableName: expense
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+  - changeSet:
+      id: seed-expense-vendor-suppliers
+      author: admin
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO supplier (
+                uuid, supplier_code, name, registration_name, gstn, category, status,
+                country, city, postal_address, payment_terms, settlement_currency,
+                active, archive, created, modified
+              ) VALUES
+              (
+                'e1000001-0001-0001-0001-000000000001', 'SUP-1001',
+                'Google India Pvt Ltd', 'Google India Private Limited',
+                '07AAACG5678G1Z2', 'Marketing', 'ACTIVE',
+                'India', 'Delhi', 'Cyber Hub, Gurugram, Haryana 122002',
+                'Net 30 Days', 'INR', true, false, NOW(), NOW()
+              ),
+              (
+                'e1000002-0002-0002-0002-000000000002', 'SUP-1002',
+                'Meta Platforms India Pvt Ltd', 'Meta Platforms India Private Limited',
+                '29AABCM4321H1Z3', 'Marketing', 'ACTIVE',
+                'India', 'Maharashtra', 'BKC, Mumbai, Maharashtra 400051',
+                'Net 30 Days', 'INR', true, false, NOW(), NOW()
+              ),
+              (
+                'e1000003-0003-0003-0003-000000000003', 'SUP-1003',
+                'Blue Dart Express Ltd', 'Blue Dart Express Limited',
+                '27AAACB5432A1Z4', 'Logistics', 'ACTIVE',
+                'India', 'Maharashtra', 'Andheri East, Mumbai, Maharashtra 400072',
+                'Net 15 Days', 'INR', true, false, NOW(), NOW()
+              ),
+              (
+                'e1000004-0004-0004-0004-000000000004', 'SUP-1004',
+                'Delhivery Pvt Ltd', 'Delhivery Private Limited',
+                '09AAACD4567B1Z5', 'Logistics', 'ACTIVE',
+                'India', 'Haryana', 'NH-48, Gurugram, Haryana 122002',
+                'Net 15 Days', 'INR', true, false, NOW(), NOW()
+              ),
+              (
+                'e1000005-0005-0005-0005-000000000005', 'SUP-1005',
+                'Tata Power Ltd', 'Tata Power Company Limited',
+                '27AAACT1234P1Z6', 'Utilities', 'ACTIVE',
+                'India', 'Maharashtra', 'Homi Mody Street, Mumbai, Maharashtra 400023',
+                'Net 30 Days', 'INR', true, false, NOW(), NOW()
+              ),
+              (
+                'e1000006-0006-0006-0006-000000000006', 'SUP-1006',
+                'Adani Electricity Mumbai', 'Adani Electricity Mumbai Limited',
+                '27AAACH5678E1Z7', 'Utilities', 'ACTIVE',
+                'India', 'Maharashtra', 'Adani House, Malabar Hill, Mumbai 400006',
+                'Net 30 Days', 'INR', true, false, NOW(), NOW()
+              ),
+              (
+                'e1000007-0007-0007-0007-000000000007', 'SUP-1007',
+                'Reliance Retail Ventures Ltd', 'Reliance Retail Ventures Limited',
+                '27AAACR6789R1Z8', 'Operations', 'ACTIVE',
+                'India', 'Maharashtra', 'Maker Chambers, Nariman Point, Mumbai 400021',
+                'Net 30 Days', 'INR', true, false, NOW(), NOW()
+              ),
+              (
+                'e1000008-0008-0008-0008-000000000008', 'SUP-1008',
+                'Amazon India Pvt Ltd', 'Amazon Seller Services Private Limited',
+                '29AANCA5204B1ZR', 'Operations', 'ACTIVE',
+                'India', 'Karnataka', 'Prestige Shantiniketan, Bangalore 560048',
+                'Net 30 Days', 'INR', true, false, NOW(), NOW()
+              )
+              ON CONFLICT (uuid) DO NOTHING;

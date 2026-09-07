@@ -29,6 +29,7 @@ public class InventoryProductListResponse {
     private String dimensions;
     private UUID supplierUuid;
     private List<String> images;
+    private Long currentStock;
 
     public InventoryProductListResponse(UUID uuid, String name, String description, String skuId, Long price, Long sellingPrice,
                                         InventoryCurrency priceCurrency, Long initialStock, InventoryVisibility visibility,

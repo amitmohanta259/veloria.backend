@@ -1,0 +1,72 @@
+databaseChangeLog:
+  - changeSet:
+      id: gst-accounting-001-registration
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gst_registration
+            columns:
+              - column:
+                  name: id
+                  type: bigserial
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: legal_name
+                  type: varchar(255)
+              - column:
+                  name: trade_name
+                  type: varchar(255)
+              - column:
+                  name: gstin
+                  type: varchar(15)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: state_code
+                  type: varchar(2)
+              - column:
+                  name: state_name
+                  type: varchar(100)
+              - column:
+                  name: registration_type
+                  type: varchar(50)
+                  defaultValue: REGULAR
+              - column:
+                  name: registration_date
+                  type: date
+              - column:
+                  name: return_frequency
+                  type: varchar(20)
+                  defaultValue: MONTHLY
+              - column:
+                  name: is_active
+                  type: boolean
+                  defaultValueBoolean: true
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: NOW()
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  defaultValueComputed: NOW()
+        - sql:
+            sql: |
+              INSERT INTO gst_registration (legal_name, trade_name, gstin, state_code, state_name, registration_type, registration_date, return_frequency, is_active)
+              SELECT
+                COALESCE(company_name, 'Veloria'),
+                COALESCE(company_name, 'Veloria'),
+                COALESCE(gst_number, '21AABCU9603R1ZX'),
+                COALESCE(seller_state_code, '21'),
+                'Odisha',
+                'REGULAR',
+                '2017-07-01',
+                'MONTHLY',
+                true
+              FROM business_details
+              WHERE archive = false
+              ORDER BY id ASC
+              LIMIT 1
+              ON CONFLICT (gstin) DO NOTHING;

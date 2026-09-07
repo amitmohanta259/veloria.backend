@@ -8,5 +8,8 @@ public class SaveAddressRequest {
     @NotBlank private String receiverName;
     @NotBlank private String phone;
     @NotBlank private String address;
+    private String city;
+    private String stateCode;
+    private String pincode;
     private boolean isDefault;
 }

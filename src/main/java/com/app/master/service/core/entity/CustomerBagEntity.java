@@ -29,6 +29,7 @@ public class CustomerBagEntity {
     @Column(nullable = false)
     private Integer quantity;
 
+    private String size;
     private Instant addedAt;
     private Instant updatedAt;
 

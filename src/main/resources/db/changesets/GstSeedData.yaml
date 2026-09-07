@@ -1,0 +1,466 @@
+databaseChangeLog:
+  - changeSet:
+      id: seed_gst_state_master
+      author: admin
+      changes:
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '01' }
+              - column: { name: state_name, value: 'Jammu & Kashmir' }
+              - column: { name: is_ut, valueBoolean: true }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '02' }
+              - column: { name: state_name, value: 'Himachal Pradesh' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '03' }
+              - column: { name: state_name, value: 'Punjab' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '04' }
+              - column: { name: state_name, value: 'Chandigarh' }
+              - column: { name: is_ut, valueBoolean: true }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '05' }
+              - column: { name: state_name, value: 'Uttarakhand' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '06' }
+              - column: { name: state_name, value: 'Haryana' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '07' }
+              - column: { name: state_name, value: 'Delhi' }
+              - column: { name: is_ut, valueBoolean: true }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '08' }
+              - column: { name: state_name, value: 'Rajasthan' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '09' }
+              - column: { name: state_name, value: 'Uttar Pradesh' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '10' }
+              - column: { name: state_name, value: 'Bihar' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '11' }
+              - column: { name: state_name, value: 'Sikkim' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '12' }
+              - column: { name: state_name, value: 'Arunachal Pradesh' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '13' }
+              - column: { name: state_name, value: 'Nagaland' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '14' }
+              - column: { name: state_name, value: 'Manipur' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '15' }
+              - column: { name: state_name, value: 'Mizoram' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '16' }
+              - column: { name: state_name, value: 'Tripura' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '17' }
+              - column: { name: state_name, value: 'Meghalaya' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '18' }
+              - column: { name: state_name, value: 'Assam' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '19' }
+              - column: { name: state_name, value: 'West Bengal' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '20' }
+              - column: { name: state_name, value: 'Jharkhand' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '21' }
+              - column: { name: state_name, value: 'Odisha' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '22' }
+              - column: { name: state_name, value: 'Chhattisgarh' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '23' }
+              - column: { name: state_name, value: 'Madhya Pradesh' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '24' }
+              - column: { name: state_name, value: 'Gujarat' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '26' }
+              - column: { name: state_name, value: 'Dadra & Nagar Haveli and Daman & Diu' }
+              - column: { name: is_ut, valueBoolean: true }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '27' }
+              - column: { name: state_name, value: 'Maharashtra' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '29' }
+              - column: { name: state_name, value: 'Karnataka' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '30' }
+              - column: { name: state_name, value: 'Goa' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '31' }
+              - column: { name: state_name, value: 'Lakshadweep' }
+              - column: { name: is_ut, valueBoolean: true }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '32' }
+              - column: { name: state_name, value: 'Kerala' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '33' }
+              - column: { name: state_name, value: 'Tamil Nadu' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '34' }
+              - column: { name: state_name, value: 'Puducherry' }
+              - column: { name: is_ut, valueBoolean: true }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '35' }
+              - column: { name: state_name, value: 'Andaman & Nicobar Islands' }
+              - column: { name: is_ut, valueBoolean: true }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '36' }
+              - column: { name: state_name, value: 'Telangana' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '37' }
+              - column: { name: state_name, value: 'Andhra Pradesh' }
+              - column: { name: is_ut, valueBoolean: false }
+        - insert:
+            tableName: gst_state_master
+            columns:
+              - column: { name: state_code, value: '38' }
+              - column: { name: state_name, value: 'Ladakh' }
+              - column: { name: is_ut, valueBoolean: true }
+
+  - changeSet:
+      id: seed_gst_hsn_master
+      author: admin
+      changes:
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '61' }
+              - column: { name: description, value: 'Articles of apparel and clothing accessories, knitted or crocheted' }
+              - column: { name: chapter, value: '61' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '6101' }
+              - column: { name: description, value: "Men's overcoats, car-coats, capes, cloaks, anoraks (knitted)" }
+              - column: { name: chapter, value: '61' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '6104' }
+              - column: { name: description, value: "Women's suits, ensembles, jackets, blazers, dresses, skirts (knitted)" }
+              - column: { name: chapter, value: '61' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '6106' }
+              - column: { name: description, value: "Women's blouses and shirts (knitted)" }
+              - column: { name: chapter, value: '61' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '6109' }
+              - column: { name: description, value: 'T-shirts, singlets and other vests (knitted)' }
+              - column: { name: chapter, value: '61' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '6110' }
+              - column: { name: description, value: 'Jerseys, pullovers, cardigans, waistcoats (knitted)' }
+              - column: { name: chapter, value: '61' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '6114' }
+              - column: { name: description, value: 'Other garments, knitted or crocheted' }
+              - column: { name: chapter, value: '61' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '62' }
+              - column: { name: description, value: 'Articles of apparel and clothing accessories, not knitted or crocheted' }
+              - column: { name: chapter, value: '62' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '6201' }
+              - column: { name: description, value: "Men's overcoats, car-coats, capes, cloaks (woven)" }
+              - column: { name: chapter, value: '62' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '6204' }
+              - column: { name: description, value: "Women's suits, ensembles, jackets, dresses, skirts, trousers (woven)" }
+              - column: { name: chapter, value: '62' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '6206' }
+              - column: { name: description, value: "Women's blouses, shirts and shirt-blouses (woven)" }
+              - column: { name: chapter, value: '62' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '6211' }
+              - column: { name: description, value: 'Track suits, ski suits, swimwear, sarees and special garments (woven)' }
+              - column: { name: chapter, value: '62' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '6214' }
+              - column: { name: description, value: 'Shawls, scarves, mufflers, mantillas, veils, dupattas, stoles (woven)' }
+              - column: { name: chapter, value: '62' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '63' }
+              - column: { name: description, value: 'Other made up textile articles; needlework sets; worn clothing and worn textile articles and rags' }
+              - column: { name: chapter, value: '63' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '6301' }
+              - column: { name: description, value: 'Blankets and travelling rugs' }
+              - column: { name: chapter, value: '63' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '6302' }
+              - column: { name: description, value: 'Bed linen, table linen, toilet linen and kitchen linen' }
+              - column: { name: chapter, value: '63' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '42' }
+              - column: { name: description, value: 'Articles of leather or of composition leather; saddlery and harness' }
+              - column: { name: chapter, value: '42' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '4202' }
+              - column: { name: description, value: 'Trunks, suitcases, handbags, shopping bags, wallets, purses' }
+              - column: { name: chapter, value: '42' }
+        - insert:
+            tableName: gst_hsn_master
+            columns:
+              - column: { name: hsn_code, value: '4203' }
+              - column: { name: description, value: 'Articles of apparel and clothing accessories of leather or composition leather' }
+              - column: { name: chapter, value: '42' }
+
+  - changeSet:
+      id: seed_gst_tax_rules
+      author: admin
+      changes:
+        - insert:
+            tableName: gst_tax_rules
+            columns:
+              - column: { name: uuid, valueComputed: 'gen_random_uuid()' }
+              - column: { name: hsn_code, value: '61' }
+              - column: { name: hsn_match_type, value: 'PREFIX' }
+              - column: { name: description, value: 'Knitted apparel below ₹1000 (Chapter 61)' }
+              - column: { name: min_price_paise, valueNumeric: 0 }
+              - column: { name: max_price_paise, valueNumeric: 99999 }
+              - column: { name: cgst_rate_bp, valueNumeric: 250 }
+              - column: { name: sgst_rate_bp, valueNumeric: 250 }
+              - column: { name: igst_rate_bp, valueNumeric: 500 }
+              - column: { name: priority, valueNumeric: 200 }
+              - column: { name: effective_from, valueDate: '2017-07-01' }
+              - column: { name: active, valueBoolean: true }
+              - column: { name: created, valueDate: 'now()' }
+        - insert:
+            tableName: gst_tax_rules
+            columns:
+              - column: { name: uuid, valueComputed: 'gen_random_uuid()' }
+              - column: { name: hsn_code, value: '61' }
+              - column: { name: hsn_match_type, value: 'PREFIX' }
+              - column: { name: description, value: 'Knitted apparel ₹1000 and above (Chapter 61)' }
+              - column: { name: min_price_paise, valueNumeric: 100000 }
+              - column: { name: cgst_rate_bp, valueNumeric: 600 }
+              - column: { name: sgst_rate_bp, valueNumeric: 600 }
+              - column: { name: igst_rate_bp, valueNumeric: 1200 }
+              - column: { name: priority, valueNumeric: 200 }
+              - column: { name: effective_from, valueDate: '2017-07-01' }
+              - column: { name: active, valueBoolean: true }
+              - column: { name: created, valueDate: 'now()' }
+        - insert:
+            tableName: gst_tax_rules
+            columns:
+              - column: { name: uuid, valueComputed: 'gen_random_uuid()' }
+              - column: { name: hsn_code, value: '62' }
+              - column: { name: hsn_match_type, value: 'PREFIX' }
+              - column: { name: description, value: 'Woven apparel below ₹1000 (Chapter 62)' }
+              - column: { name: min_price_paise, valueNumeric: 0 }
+              - column: { name: max_price_paise, valueNumeric: 99999 }
+              - column: { name: cgst_rate_bp, valueNumeric: 250 }
+              - column: { name: sgst_rate_bp, valueNumeric: 250 }
+              - column: { name: igst_rate_bp, valueNumeric: 500 }
+              - column: { name: priority, valueNumeric: 200 }
+              - column: { name: effective_from, valueDate: '2017-07-01' }
+              - column: { name: active, valueBoolean: true }
+              - column: { name: created, valueDate: 'now()' }
+        - insert:
+            tableName: gst_tax_rules
+            columns:
+              - column: { name: uuid, valueComputed: 'gen_random_uuid()' }
+              - column: { name: hsn_code, value: '62' }
+              - column: { name: hsn_match_type, value: 'PREFIX' }
+              - column: { name: description, value: 'Woven apparel ₹1000 and above (Chapter 62)' }
+              - column: { name: min_price_paise, valueNumeric: 100000 }
+              - column: { name: cgst_rate_bp, valueNumeric: 600 }
+              - column: { name: sgst_rate_bp, valueNumeric: 600 }
+              - column: { name: igst_rate_bp, valueNumeric: 1200 }
+              - column: { name: priority, valueNumeric: 200 }
+              - column: { name: effective_from, valueDate: '2017-07-01' }
+              - column: { name: active, valueBoolean: true }
+              - column: { name: created, valueDate: 'now()' }
+        - insert:
+            tableName: gst_tax_rules
+            columns:
+              - column: { name: uuid, valueComputed: 'gen_random_uuid()' }
+              - column: { name: hsn_code, value: '63' }
+              - column: { name: hsn_match_type, value: 'PREFIX' }
+              - column: { name: description, value: 'Other made-up textile articles below ₹1000 (Chapter 63)' }
+              - column: { name: min_price_paise, valueNumeric: 0 }
+              - column: { name: max_price_paise, valueNumeric: 99999 }
+              - column: { name: cgst_rate_bp, valueNumeric: 250 }
+              - column: { name: sgst_rate_bp, valueNumeric: 250 }
+              - column: { name: igst_rate_bp, valueNumeric: 500 }
+              - column: { name: priority, valueNumeric: 200 }
+              - column: { name: effective_from, valueDate: '2017-07-01' }
+              - column: { name: active, valueBoolean: true }
+              - column: { name: created, valueDate: 'now()' }
+        - insert:
+            tableName: gst_tax_rules
+            columns:
+              - column: { name: uuid, valueComputed: 'gen_random_uuid()' }
+              - column: { name: hsn_code, value: '63' }
+              - column: { name: hsn_match_type, value: 'PREFIX' }
+              - column: { name: description, value: 'Other made-up textile articles ₹1000 and above (Chapter 63)' }
+              - column: { name: min_price_paise, valueNumeric: 100000 }
+              - column: { name: cgst_rate_bp, valueNumeric: 600 }
+              - column: { name: sgst_rate_bp, valueNumeric: 600 }
+              - column: { name: igst_rate_bp, valueNumeric: 1200 }
+              - column: { name: priority, valueNumeric: 200 }
+              - column: { name: effective_from, valueDate: '2017-07-01' }
+              - column: { name: active, valueBoolean: true }
+              - column: { name: created, valueDate: 'now()' }
+        - insert:
+            tableName: gst_tax_rules
+            columns:
+              - column: { name: uuid, valueComputed: 'gen_random_uuid()' }
+              - column: { name: hsn_code, value: '4202' }
+              - column: { name: hsn_match_type, value: 'PREFIX' }
+              - column: { name: description, value: 'Handbags, trunks, wallets, purses (Chapter 4202)' }
+              - column: { name: cgst_rate_bp, valueNumeric: 900 }
+              - column: { name: sgst_rate_bp, valueNumeric: 900 }
+              - column: { name: igst_rate_bp, valueNumeric: 1800 }
+              - column: { name: priority, valueNumeric: 300 }
+              - column: { name: effective_from, valueDate: '2017-07-01' }
+              - column: { name: active, valueBoolean: true }
+              - column: { name: created, valueDate: 'now()' }
+        - insert:
+            tableName: gst_tax_rules
+            columns:
+              - column: { name: uuid, valueComputed: 'gen_random_uuid()' }
+              - column: { name: hsn_code, value: '4203' }
+              - column: { name: hsn_match_type, value: 'PREFIX' }
+              - column: { name: description, value: 'Leather apparel and accessories (Chapter 4203)' }
+              - column: { name: cgst_rate_bp, valueNumeric: 900 }
+              - column: { name: sgst_rate_bp, valueNumeric: 900 }
+              - column: { name: igst_rate_bp, valueNumeric: 1800 }
+              - column: { name: priority, valueNumeric: 300 }
+              - column: { name: effective_from, valueDate: '2017-07-01' }
+              - column: { name: active, valueBoolean: true }
+              - column: { name: created, valueDate: 'now()' }

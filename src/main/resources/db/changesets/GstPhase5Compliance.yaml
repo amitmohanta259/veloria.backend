@@ -1,0 +1,401 @@
+databaseChangeLog:
+
+  # ── ITC ledger: claim / reversal / reclaim as first-class records ─────────
+  - changeSet:
+      id: gst-phase5-001-input-tax-itc-columns
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: gst_input_tax
+            columns:
+              - column: { name: claimed_cgst,   type: bigint, defaultValueNumeric: 0 }
+              - column: { name: claimed_sgst,   type: bigint, defaultValueNumeric: 0 }
+              - column: { name: claimed_igst,   type: bigint, defaultValueNumeric: 0 }
+              - column: { name: reversed_cgst,  type: bigint, defaultValueNumeric: 0 }
+              - column: { name: reversed_sgst,  type: bigint, defaultValueNumeric: 0 }
+              - column: { name: reversed_igst,  type: bigint, defaultValueNumeric: 0 }
+              - column: { name: reclaimed_cgst, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: reclaimed_sgst, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: reclaimed_igst, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cess_amount,    type: bigint, defaultValueNumeric: 0 }
+              - column: { name: eligibility_reason, type: varchar(40) }
+              - column: { name: eligibility_notes,  type: text }
+              - column: { name: itc_claimed_at, type: timestamp }
+        - sql:
+            sql: >
+              UPDATE gst_input_tax
+                 SET claimed_cgst = 0, claimed_sgst = 0, claimed_igst = 0,
+                     reversed_cgst = 0, reversed_sgst = 0, reversed_igst = 0,
+                     reclaimed_cgst = 0, reclaimed_sgst = 0, reclaimed_igst = 0,
+                     cess_amount = COALESCE(cess_amount, 0)
+               WHERE claimed_cgst IS NULL
+
+  # Every claim, reversal and reclaim is its own auditable row. Balances on
+  # gst_input_tax are derived from these, never edited directly.
+  - changeSet:
+      id: gst-phase5-002-itc-transaction
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gst_itc_transaction
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: transaction_reference, type: varchar(80), constraints: { nullable: false, unique: true } }
+              - column: { name: input_tax_id, type: bigint, constraints: { nullable: false } }
+              - column: { name: transaction_type, type: varchar(20), constraints: { nullable: false } }
+              - column: { name: reason_code, type: varchar(40) }
+              - column: { name: reason_notes, type: text }
+              - column: { name: cgst_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: sgst_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: igst_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cess_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: tax_period, type: varchar(7) }
+              - column: { name: financial_year, type: varchar(7) }
+              - column: { name: movement_id, type: bigint }
+              - column: { name: reversal_of_id, type: bigint }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+              - column: { name: created_by, type: varchar(100) }
+        - addForeignKeyConstraint:
+            baseTableName: gst_itc_transaction
+            baseColumnNames: input_tax_id
+            constraintName: fk_itc_txn_input_tax
+            referencedTableName: gst_input_tax
+            referencedColumnNames: id
+        - createIndex:
+            tableName: gst_itc_transaction
+            indexName: idx_itc_txn_input_tax
+            columns: [{ column: { name: input_tax_id } }, { column: { name: transaction_type } }]
+        - createIndex:
+            tableName: gst_itc_transaction
+            indexName: idx_itc_txn_period
+            columns: [{ column: { name: organization_id } }, { column: { name: tax_period } }]
+        - sql:
+            sql: >
+              ALTER TABLE gst_itc_transaction
+                ADD CONSTRAINT ck_itc_txn_amounts_non_negative
+                CHECK (cgst_paise >= 0 AND sgst_paise >= 0 AND igst_paise >= 0 AND cess_paise >= 0)
+
+  # Invariants from spec section 60, enforced by the database rather than only
+  # in Java: claimed <= eligible, reversed <= claimed, reclaimed <= reversed.
+  - changeSet:
+      id: gst-phase5-003-itc-invariants
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              ALTER TABLE gst_input_tax
+                ADD CONSTRAINT ck_itc_claimed_within_eligible
+                CHECK (COALESCE(claimed_cgst,0) <= COALESCE(eligible_cgst,0)
+                   AND COALESCE(claimed_sgst,0) <= COALESCE(eligible_sgst,0)
+                   AND COALESCE(claimed_igst,0) <= COALESCE(eligible_igst,0))
+        - sql:
+            sql: >
+              ALTER TABLE gst_input_tax
+                ADD CONSTRAINT ck_itc_reversed_within_claimed
+                CHECK (COALESCE(reversed_cgst,0) <= COALESCE(claimed_cgst,0)
+                   AND COALESCE(reversed_sgst,0) <= COALESCE(claimed_sgst,0)
+                   AND COALESCE(reversed_igst,0) <= COALESCE(claimed_igst,0))
+        - sql:
+            sql: >
+              ALTER TABLE gst_input_tax
+                ADD CONSTRAINT ck_itc_reclaimed_within_reversed
+                CHECK (COALESCE(reclaimed_cgst,0) <= COALESCE(reversed_cgst,0)
+                   AND COALESCE(reclaimed_sgst,0) <= COALESCE(reversed_sgst,0)
+                   AND COALESCE(reclaimed_igst,0) <= COALESCE(reversed_igst,0))
+
+  # ── GSTR-2B ingestion and reconciliation ─────────────────────────────────
+  - changeSet:
+      id: gst-phase5-004-gstr2b
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gstr2b_import
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: tax_period, type: varchar(7), constraints: { nullable: false } }
+              - column: { name: source_format, type: varchar(20) }
+              - column: { name: file_name, type: varchar(255) }
+              - column: { name: record_count, type: int, defaultValueNumeric: 0 }
+              - column: { name: total_taxable_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_tax_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: status, type: varchar(20), defaultValue: IMPORTED }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+              - column: { name: imported_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+              - column: { name: imported_by, type: varchar(100) }
+        - createTable:
+            tableName: gstr2b_record
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: import_id, type: bigint, constraints: { nullable: false } }
+              - column: { name: supplier_gstin, type: varchar(15) }
+              - column: { name: supplier_name, type: varchar(255) }
+              - column: { name: invoice_number, type: varchar(100) }
+              - column: { name: invoice_date, type: date }
+              - column: { name: invoice_type, type: varchar(20), defaultValue: B2B }
+              - column: { name: taxable_value_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cgst_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: sgst_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: igst_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cess_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_tax_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: tax_period, type: varchar(7) }
+              - column: { name: match_status, type: varchar(20), defaultValue: PENDING_REVIEW }
+              - column: { name: matched_input_tax_id, type: bigint }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+        - addForeignKeyConstraint:
+            baseTableName: gstr2b_record
+            baseColumnNames: import_id
+            constraintName: fk_gstr2b_record_import
+            referencedTableName: gstr2b_import
+            referencedColumnNames: id
+        - createIndex:
+            tableName: gstr2b_record
+            indexName: idx_gstr2b_record_match
+            columns: [{ column: { name: supplier_gstin } }, { column: { name: invoice_number } }]
+        - createIndex:
+            tableName: gstr2b_record
+            indexName: idx_gstr2b_record_status
+            columns: [{ column: { name: organization_id } }, { column: { name: match_status } }]
+
+  # Reconciliation outcome per purchase invoice, with the differences named.
+  - changeSet:
+      id: gst-phase5-005-itc-reconciliation
+      author: veloria
+      changes:
+        - createTable:
+            tableName: itc_reconciliation
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: input_tax_id, type: bigint }
+              - column: { name: gstr2b_record_id, type: bigint }
+              - column: { name: tax_period, type: varchar(7) }
+              - column: { name: match_status, type: varchar(20), constraints: { nullable: false } }
+              - column: { name: taxable_difference_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cgst_difference_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: sgst_difference_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: igst_difference_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_difference_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: difference_notes, type: text }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: reconciled_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+              - column: { name: reconciled_by, type: varchar(100) }
+        - createIndex:
+            tableName: itc_reconciliation
+            indexName: idx_itc_recon_period
+            columns: [{ column: { name: organization_id } }, { column: { name: tax_period } }]
+
+  # ── Tax period lifecycle and locking ─────────────────────────────────────
+  - changeSet:
+      id: gst-phase5-006-tax-period-lifecycle
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: gst_tax_period
+            columns:
+              - column: { name: gstr1_status, type: varchar(20), defaultValue: NOT_STARTED }
+              - column: { name: gstr3b_status, type: varchar(20), defaultValue: NOT_STARTED }
+              - column: { name: gstr2b_status, type: varchar(20), defaultValue: NOT_IMPORTED }
+              - column: { name: locked_at, type: timestamp }
+              - column: { name: locked_by, type: varchar(100) }
+              - column: { name: unlocked_at, type: timestamp }
+              - column: { name: unlocked_by, type: varchar(100) }
+              - column: { name: unlock_reason, type: text }
+        - addUniqueConstraint:
+            tableName: gst_tax_period
+            columnNames: organization_id, gst_registration_id, tax_period
+            constraintName: uq_tax_period_org_reg
+
+  # A locked period refuses new ledger postings at the database level, so an
+  # application bug cannot quietly write into a filed period (spec section 21).
+  - changeSet:
+      id: gst-phase5-007-period-lock-enforcement
+      author: veloria
+      changes:
+        - sql:
+            splitStatements: false
+            sql: |
+              CREATE OR REPLACE FUNCTION gst_reject_locked_period() RETURNS trigger AS $$
+              DECLARE p_status text;
+              BEGIN
+                SELECT status INTO p_status
+                  FROM gst_tax_period
+                 WHERE tax_period = NEW.tax_period
+                   AND organization_id IS NOT DISTINCT FROM NEW.organization_id
+                 LIMIT 1;
+                IF p_status IN ('LOCKED', 'FILED') THEN
+                  RAISE EXCEPTION 'GST period % is % — post an adjustment in an open period instead',
+                    NEW.tax_period, p_status
+                    USING ERRCODE = 'check_violation';
+                END IF;
+                RETURN NEW;
+              END;
+              $$ LANGUAGE plpgsql;
+        - sql:
+            splitStatements: false
+            sql: |
+              CREATE TRIGGER trg_gst_movement_period_lock
+              BEFORE INSERT OR UPDATE ON gst_movement_ledger
+              FOR EACH ROW EXECUTE FUNCTION gst_reject_locked_period();
+      rollback:
+        - sql:
+            sql: DROP TRIGGER IF EXISTS trg_gst_movement_period_lock ON gst_movement_ledger
+        - sql:
+            sql: DROP FUNCTION IF EXISTS gst_reject_locked_period()
+
+  # ── Debit notes ──────────────────────────────────────────────────────────
+  - changeSet:
+      id: gst-phase5-008-debit-note
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gst_debit_note
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: debit_note_number, type: varchar(40), constraints: { nullable: false, unique: true } }
+              - column: { name: debit_note_date, type: date }
+              - column: { name: original_order_code, type: varchar(60) }
+              - column: { name: original_order_id, type: bigint }
+              - column: { name: original_invoice_date, type: date }
+              - column: { name: customer_id, type: varchar(60) }
+              - column: { name: customer_name, type: varchar(255) }
+              - column: { name: customer_gstin, type: varchar(15) }
+              - column: { name: tax_period, type: varchar(7) }
+              - column: { name: financial_year, type: varchar(7) }
+              - column: { name: original_tax_period, type: varchar(7) }
+              - column: { name: taxable_value_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cgst_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: sgst_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: igst_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cess_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_debit_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: supply_type, type: varchar(20) }
+              - column: { name: place_of_supply, type: varchar(2) }
+              - column: { name: reason_code, type: varchar(40) }
+              - column: { name: status, type: varchar(30), defaultValue: PENDING_REVIEW }
+              - column: { name: reporting_status, type: varchar(30), defaultValue: NOT_REPORTED }
+              - column: { name: notes, type: text }
+              - column: { name: movement_id, type: bigint }
+              - column: { name: approved_by, type: varchar(100) }
+              - column: { name: approved_at, type: timestamp }
+              - column: { name: issued_at, type: timestamp }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+              - column: { name: created_by, type: varchar(100) }
+        - createTable:
+            tableName: gst_debit_note_item
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: debit_note_id, type: bigint, constraints: { nullable: false } }
+              - column: { name: order_item_id, type: bigint }
+              - column: { name: product_uuid, type: uuid }
+              - column: { name: product_name, type: varchar(255) }
+              - column: { name: hsn_code, type: varchar(20) }
+              - column: { name: quantity, type: int, defaultValueNumeric: 1 }
+              - column: { name: unit_price_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: taxable_value_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cgst_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: sgst_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: igst_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: cgst_amount_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: sgst_amount_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: igst_amount_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_tax_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+        - addForeignKeyConstraint:
+            baseTableName: gst_debit_note_item
+            baseColumnNames: debit_note_id
+            constraintName: fk_debit_note_item_note
+            referencedTableName: gst_debit_note
+            referencedColumnNames: id
+
+  # ── Tax payment ledger ───────────────────────────────────────────────────
+  - changeSet:
+      id: gst-phase5-009-tax-payment
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gst_payment
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: payment_reference, type: varchar(80), constraints: { nullable: false, unique: true } }
+              - column: { name: payment_date, type: date }
+              - column: { name: tax_period, type: varchar(7), constraints: { nullable: false } }
+              - column: { name: financial_year, type: varchar(7) }
+              - column: { name: cgst_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: sgst_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: igst_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cess_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: interest_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: late_fee_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: payment_mode, type: varchar(30) }
+              - column: { name: challan_number, type: varchar(80) }
+              - column: { name: notes, type: text }
+              - column: { name: movement_id, type: bigint }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+              - column: { name: created_by, type: varchar(100) }
+        - sql:
+            sql: >
+              ALTER TABLE gst_payment
+                ADD CONSTRAINT ck_gst_payment_non_negative
+                CHECK (cgst_paise >= 0 AND sgst_paise >= 0 AND igst_paise >= 0
+                   AND cess_paise >= 0 AND interest_paise >= 0 AND late_fee_paise >= 0)
+        - createIndex:
+            tableName: gst_payment
+            indexName: idx_gst_payment_period
+            columns: [{ column: { name: organization_id } }, { column: { name: tax_period } }]
+
+  # ── Return snapshots (GSTR-1 / GSTR-3B) ──────────────────────────────────
+  - changeSet:
+      id: gst-phase5-010-return-snapshot
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gst_return_snapshot
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: return_type, type: varchar(20), constraints: { nullable: false } }
+              - column: { name: tax_period, type: varchar(7), constraints: { nullable: false } }
+              - column: { name: financial_year, type: varchar(7) }
+              - column: { name: schema_version, type: varchar(20) }
+              - column: { name: status, type: varchar(30), defaultValue: PREPARED }
+              - column: { name: data_hash, type: varchar(64) }
+              - column: { name: payload, type: text }
+              - column: { name: source_movement_count, type: int, defaultValueNumeric: 0 }
+              - column: { name: requires_regeneration, type: boolean, defaultValueBoolean: false }
+              - column: { name: filing_reference, type: varchar(80) }
+              - column: { name: acknowledgement_number, type: varchar(80) }
+              - column: { name: filed_at, type: timestamp }
+              - column: { name: filed_by, type: varchar(100) }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+              - column: { name: prepared_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+              - column: { name: prepared_by, type: varchar(100) }
+        - createIndex:
+            tableName: gst_return_snapshot
+            indexName: idx_return_snapshot_period
+            columns:
+              - column: { name: organization_id }
+              - column: { name: return_type }
+              - column: { name: tax_period }
+
+  # ITC movements were first posted with direction IN/ADJUSTMENT, which made the
+  # tracker count a claim as additional vendor tax. They get their own direction.
+  - changeSet:
+      id: gst-phase5-011-itc-movement-direction
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              UPDATE gst_movement_ledger
+                 SET direction = 'ITC'
+               WHERE movement_type IN ('ITC_CLAIM', 'ITC_REVERSAL', 'ITC_RECLAIM')
+                 AND direction <> 'ITC'

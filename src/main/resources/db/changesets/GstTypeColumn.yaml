@@ -1,0 +1,28 @@
+databaseChangeLog:
+  - changeSet:
+      id: gst-type-column-input
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: gst_input_tax
+            columns:
+              - column:
+                  name: gst_type
+                  type: varchar(20)
+                  defaultValue: INPUT_TAX
+                  constraints:
+                    nullable: false
+
+  - changeSet:
+      id: gst-type-column-output
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: gst_output_tax
+            columns:
+              - column:
+                  name: gst_type
+                  type: varchar(20)
+                  defaultValue: OUTPUT_TAX
+                  constraints:
+                    nullable: false

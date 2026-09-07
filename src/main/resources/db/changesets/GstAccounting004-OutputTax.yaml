@@ -1,0 +1,138 @@
+databaseChangeLog:
+  - changeSet:
+      id: gst-accounting-004-output-tax
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gst_output_tax
+            columns:
+              - column:
+                  name: id
+                  type: bigserial
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: customer_order_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: customer_order_uuid
+                  type: uuid
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: order_code
+                  type: varchar(50)
+              - column:
+                  name: customer_name
+                  type: varchar(255)
+              - column:
+                  name: customer_gstin
+                  type: varchar(15)
+              - column:
+                  name: place_of_supply_state_code
+                  type: varchar(2)
+              - column:
+                  name: supply_type
+                  type: varchar(20)
+              - column:
+                  name: financial_year
+                  type: varchar(7)
+              - column:
+                  name: tax_period
+                  type: varchar(7)
+              - column:
+                  name: invoice_date
+                  type: date
+              - column:
+                  name: taxable_value
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: cgst_rate
+                  type: numeric(5,2)
+                  defaultValueNumeric: 0
+              - column:
+                  name: cgst_amount
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: sgst_rate
+                  type: numeric(5,2)
+                  defaultValueNumeric: 0
+              - column:
+                  name: sgst_amount
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: igst_rate
+                  type: numeric(5,2)
+                  defaultValueNumeric: 0
+              - column:
+                  name: igst_amount
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: total_output_tax
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: invoice_value
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: return_status
+                  type: varchar(20)
+                  defaultValue: NONE
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: NOW()
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  defaultValueComputed: NOW()
+        - createIndex:
+            tableName: gst_output_tax
+            indexName: idx_gst_output_tax_period
+            columns:
+              - column:
+                  name: tax_period
+        - createIndex:
+            tableName: gst_output_tax
+            indexName: idx_gst_output_tax_order_uuid
+            columns:
+              - column:
+                  name: customer_order_uuid
+        - sql:
+            sql: |
+              INSERT INTO gst_output_tax (
+                customer_order_id, customer_order_uuid, order_code,
+                customer_name, place_of_supply_state_code, supply_type,
+                financial_year, tax_period, invoice_date,
+                taxable_value, cgst_amount, sgst_amount, igst_amount, total_output_tax,
+                invoice_value
+              )
+              SELECT
+                co.id,
+                co.uuid,
+                co.order_code,
+                co.customer_name,
+                co.place_of_supply,
+                CASE WHEN co.buyer_state_code = co.seller_state_code THEN 'INTRA_STATE' ELSE 'INTER_STATE' END,
+                CONCAT(EXTRACT(YEAR FROM co.order_placed_at)::text, '-',
+                       LPAD(((EXTRACT(YEAR FROM co.order_placed_at)::int + 1) % 100)::text, 2, '0')),
+                TO_CHAR(co.order_placed_at, 'YYYY-MM'),
+                DATE(co.order_placed_at),
+                COALESCE(co.taxable_value, 0),
+                COALESCE(co.cgst_amount, 0),
+                COALESCE(co.sgst_amount, 0),
+                COALESCE(co.igst_amount, 0),
+                COALESCE(co.total_tax_amount, 0),
+                COALESCE(co.total_value, 0)
+              FROM customer_order co
+              WHERE co.archive = false
+                AND (co.cgst_amount > 0 OR co.igst_amount > 0)
+              ON CONFLICT (customer_order_uuid) DO NOTHING;

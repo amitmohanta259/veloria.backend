@@ -31,4 +31,6 @@ public interface InventoryProductService {
     InventoryStatsResponse getInventoryStats() throws VeloriaException;
 
     List<TopSellerItemResponse> getTopSellers(String period) throws VeloriaException;
+
+    void addStock(UUID productUuid, String size, long qty) throws VeloriaException;
 }

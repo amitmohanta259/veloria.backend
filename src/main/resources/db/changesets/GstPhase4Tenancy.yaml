@@ -1,0 +1,271 @@
+databaseChangeLog:
+
+  # ── Organization: the tenant boundary for GST data ───────────────────────
+  - changeSet:
+      id: gst-phase4-001-organization
+      author: veloria
+      changes:
+        - createTable:
+            tableName: organization
+            columns:
+              - column:
+                  name: id
+                  type: bigserial
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: code
+                  type: varchar(40)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: legal_name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: trade_name
+                  type: varchar(255)
+              - column:
+                  name: pan
+                  type: varchar(10)
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+              - column:
+                  name: updated_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+
+  # Seed the single organization the business runs today, from business_details.
+  - changeSet:
+      id: gst-phase4-002-seed-organization
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              INSERT INTO organization (code, legal_name, trade_name, active)
+              SELECT 'VELORIA',
+                     COALESCE(NULLIF(company_name, ''), 'Veloria'),
+                     NULLIF(company_name, ''),
+                     true
+                FROM business_details
+               WHERE archive = false
+               ORDER BY id ASC
+               LIMIT 1
+      rollback:
+        - sql:
+            sql: DELETE FROM organization WHERE code = 'VELORIA'
+
+  - changeSet:
+      id: gst-phase4-003-seed-organization-fallback
+      author: veloria
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM organization
+      changes:
+        - sql:
+            sql: >
+              INSERT INTO organization (code, legal_name, active)
+              VALUES ('VELORIA', 'Veloria', true)
+
+  # ── gst_registration gains its tenant link and the fields section 4 needs ─
+  - changeSet:
+      id: gst-phase4-004-registration-tenant
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: gst_registration
+            columns:
+              - column:
+                  name: organization_id
+                  type: bigint
+              - column:
+                  name: is_primary
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: invoice_prefix
+                  type: varchar(20)
+              - column:
+                  name: credit_note_prefix
+                  type: varchar(20)
+              - column:
+                  name: debit_note_prefix
+                  type: varchar(20)
+              - column:
+                  name: address
+                  type: text
+        - sql:
+            sql: >
+              UPDATE gst_registration
+                 SET organization_id = (SELECT id FROM organization ORDER BY id ASC LIMIT 1),
+                     is_primary = true,
+                     invoice_prefix = COALESCE(invoice_prefix, 'INV'),
+                     credit_note_prefix = COALESCE(credit_note_prefix, 'CN'),
+                     debit_note_prefix = COALESCE(debit_note_prefix, 'DN')
+               WHERE organization_id IS NULL
+        - addForeignKeyConstraint:
+            baseTableName: gst_registration
+            baseColumnNames: organization_id
+            constraintName: fk_gst_registration_org
+            referencedTableName: organization
+            referencedColumnNames: id
+        - createIndex:
+            tableName: gst_registration
+            indexName: idx_gst_registration_org
+            columns:
+              - column:
+                  name: organization_id
+
+  # Seed a registration from business_details when none exists yet.
+  - changeSet:
+      id: gst-phase4-005-seed-registration
+      author: veloria
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM gst_registration
+      changes:
+        - sql:
+            sql: >
+              INSERT INTO gst_registration
+                    (organization_id, legal_name, gstin, state_code, is_active, is_primary,
+                     invoice_prefix, credit_note_prefix, debit_note_prefix)
+              SELECT (SELECT id FROM organization ORDER BY id ASC LIMIT 1),
+                     COALESCE(NULLIF(b.company_name, ''), 'Veloria'),
+                     b.gst_number,
+                     SUBSTRING(b.gst_number FROM 1 FOR 2),
+                     true, true, 'INV', 'CN', 'DN'
+                FROM business_details b
+               WHERE b.archive = false AND b.gst_number IS NOT NULL
+               ORDER BY b.id ASC
+               LIMIT 1
+
+  # Reconcile the stored state code against the GSTIN it declares. The audit
+  # found 21AABCU9603R1ZX (Odisha) stored alongside state code 20 (Jharkhand).
+  - changeSet:
+      id: gst-phase4-006-registration-state-from-gstin
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              UPDATE gst_registration
+                 SET state_code = SUBSTRING(gstin FROM 1 FOR 2)
+               WHERE gstin IS NOT NULL
+                 AND LENGTH(gstin) = 15
+                 AND (state_code IS NULL OR state_code <> SUBSTRING(gstin FROM 1 FOR 2))
+
+  # ── Tenant columns on every GST-bearing table ────────────────────────────
+  - changeSet:
+      id: gst-phase4-007-tenant-columns
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: gst_movement_ledger
+            columns:
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+        - addColumn:
+            tableName: gst_credit_note
+            columns:
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+        - addColumn:
+            tableName: gst_input_tax
+            columns:
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+        - addColumn:
+            tableName: gst_output_tax
+            columns:
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+        - addColumn:
+            tableName: gst_tax_period
+            columns:
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+        - addColumn:
+            tableName: gst_audit_log
+            columns:
+              - column: { name: organization_id, type: bigint }
+        - addColumn:
+            tableName: gst_accounting_exception
+            columns:
+              - column: { name: organization_id, type: bigint }
+
+  # Backfill every existing GST row to the single organization/registration.
+  - changeSet:
+      id: gst-phase4-008-backfill-tenant
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              UPDATE gst_movement_ledger SET
+                organization_id = (SELECT id FROM organization ORDER BY id ASC LIMIT 1),
+                gst_registration_id = (SELECT id FROM gst_registration ORDER BY id ASC LIMIT 1)
+              WHERE organization_id IS NULL
+        - sql:
+            sql: >
+              UPDATE gst_credit_note SET
+                organization_id = (SELECT id FROM organization ORDER BY id ASC LIMIT 1),
+                gst_registration_id = (SELECT id FROM gst_registration ORDER BY id ASC LIMIT 1)
+              WHERE organization_id IS NULL
+        - sql:
+            sql: >
+              UPDATE gst_input_tax SET
+                organization_id = (SELECT id FROM organization ORDER BY id ASC LIMIT 1),
+                gst_registration_id = (SELECT id FROM gst_registration ORDER BY id ASC LIMIT 1)
+              WHERE organization_id IS NULL
+        - sql:
+            sql: >
+              UPDATE gst_output_tax SET
+                organization_id = (SELECT id FROM organization ORDER BY id ASC LIMIT 1),
+                gst_registration_id = (SELECT id FROM gst_registration ORDER BY id ASC LIMIT 1)
+              WHERE organization_id IS NULL
+        - sql:
+            sql: >
+              UPDATE gst_audit_log SET
+                organization_id = (SELECT id FROM organization ORDER BY id ASC LIMIT 1)
+              WHERE organization_id IS NULL
+        - sql:
+            sql: >
+              UPDATE gst_accounting_exception SET
+                organization_id = (SELECT id FROM organization ORDER BY id ASC LIMIT 1)
+              WHERE organization_id IS NULL
+
+  - changeSet:
+      id: gst-phase4-009-tenant-indexes
+      author: veloria
+      changes:
+        - createIndex:
+            tableName: gst_movement_ledger
+            indexName: idx_gst_movement_org
+            columns:
+              - column: { name: organization_id }
+              - column: { name: tax_period }
+        - createIndex:
+            tableName: gst_credit_note
+            indexName: idx_gst_credit_note_org
+            columns:
+              - column: { name: organization_id }
+        - createIndex:
+            tableName: gst_input_tax
+            indexName: idx_gst_input_tax_org
+            columns:
+              - column: { name: organization_id }
+        - createIndex:
+            tableName: gst_output_tax
+            indexName: idx_gst_output_tax_org
+            columns:
+              - column: { name: organization_id }

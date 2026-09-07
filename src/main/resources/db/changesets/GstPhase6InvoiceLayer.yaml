@@ -1,0 +1,399 @@
+databaseChangeLog:
+
+  # ── Tax rule gains cess (spec phase 13) ──────────────────────────────────
+  # Extends the existing rule engine rather than adding a parallel cess
+  # calculation. Cess applies only when a rule sets a rate.
+  - changeSet:
+      id: gst-phase6-001-tax-rule-cess
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: gst_tax_rules
+            columns:
+              - column: { name: cess_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: cess_type, type: varchar(30) }
+
+  # ── Invoice numbering series (spec phase 7) ──────────────────────────────
+  # One row per registration + document type + financial year. The counter is
+  # advanced with UPDATE ... RETURNING, which takes a row lock, so concurrent
+  # requests cannot receive the same number.
+  - changeSet:
+      id: gst-phase6-002-invoice-series
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gst_invoice_series
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: organization_id, type: bigint, constraints: { nullable: false } }
+              - column: { name: gst_registration_id, type: bigint }
+              - column: { name: document_type, type: varchar(20), constraints: { nullable: false } }
+              - column: { name: financial_year, type: varchar(7), constraints: { nullable: false } }
+              - column: { name: prefix, type: varchar(40) }
+              - column: { name: separator, type: varchar(3), defaultValue: "/" }
+              - column: { name: padding, type: int, defaultValueNumeric: 6 }
+              - column: { name: next_number, type: bigint, defaultValueNumeric: 1, constraints: { nullable: false } }
+              - column: { name: active, type: boolean, defaultValueBoolean: true }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+        - addUniqueConstraint:
+            tableName: gst_invoice_series
+            columnNames: organization_id, gst_registration_id, document_type, financial_year
+            constraintName: uq_invoice_series_scope
+        - sql:
+            sql: >
+              ALTER TABLE gst_invoice_series
+                ADD CONSTRAINT ck_invoice_series_next_positive CHECK (next_number > 0)
+
+  # ── Sales invoice (spec phase 6) ─────────────────────────────────────────
+  # The GST document, separate from the order. Every monetary field is a
+  # snapshot: changing a price, rate, address or GSTIN later must not alter an
+  # invoice that has already been issued.
+  - changeSet:
+      id: gst-phase6-003-sales-invoice
+      author: veloria
+      changes:
+        - createTable:
+            tableName: sales_invoice
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: invoice_number, type: varchar(60) }
+              - column: { name: invoice_date, type: date }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+              - column: { name: order_id, type: bigint }
+              - column: { name: order_code, type: varchar(60) }
+              - column: { name: customer_id, type: varchar(60) }
+              - column: { name: customer_type, type: varchar(10), defaultValue: B2C }
+              - column: { name: customer_gstin, type: varchar(15) }
+              - column: { name: customer_name, type: varchar(255) }
+              - column: { name: customer_legal_name, type: varchar(255) }
+              - column: { name: billing_address_snapshot, type: text }
+              - column: { name: shipping_address_snapshot, type: text }
+              - column: { name: place_of_supply, type: varchar(2) }
+              - column: { name: seller_gstin, type: varchar(15) }
+              - column: { name: seller_state_code, type: varchar(2) }
+              - column: { name: supply_type, type: varchar(20) }
+              - column: { name: reverse_charge, type: boolean, defaultValueBoolean: false }
+              - column: { name: currency, type: varchar(5), defaultValue: INR }
+              - column: { name: gross_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: discount_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: shipping_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: shipping_taxable_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: taxable_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cgst_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: sgst_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: igst_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cess_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_tax, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: round_off, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_invoice_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: status, type: varchar(20), defaultValue: DRAFT, constraints: { nullable: false } }
+              - column: { name: tax_period, type: varchar(7) }
+              - column: { name: financial_year, type: varchar(7) }
+              - column: { name: issued_at, type: timestamp }
+              - column: { name: issued_by, type: varchar(100) }
+              - column: { name: cancelled_at, type: timestamp }
+              - column: { name: cancelled_by, type: varchar(100) }
+              - column: { name: cancellation_reason, type: text }
+              - column: { name: amended_at, type: timestamp }
+              - column: { name: amended_by, type: varchar(100) }
+              - column: { name: amendment_reason, type: text }
+              - column: { name: original_invoice_id, type: bigint }
+              - column: { name: movement_posted, type: boolean, defaultValueBoolean: false }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+              - column: { name: created_by, type: varchar(100) }
+              - column: { name: updated_at, type: timestamp }
+        - addUniqueConstraint:
+            tableName: sales_invoice
+            columnNames: invoice_number
+            constraintName: uq_sales_invoice_number
+        - createIndex:
+            tableName: sales_invoice
+            indexName: idx_sales_invoice_org_period
+            columns: [{ column: { name: organization_id } }, { column: { name: tax_period } }]
+        - createIndex:
+            tableName: sales_invoice
+            indexName: idx_sales_invoice_order
+            columns: [{ column: { name: order_id } }]
+        - sql:
+            sql: >
+              ALTER TABLE sales_invoice
+                ADD CONSTRAINT ck_sales_invoice_non_negative
+                CHECK (gross_value >= 0 AND discount_value >= 0 AND taxable_value >= 0
+                   AND cgst_amount >= 0 AND sgst_amount >= 0 AND igst_amount >= 0
+                   AND cess_amount >= 0 AND total_tax >= 0)
+        # An issued invoice must carry a number; a draft need not.
+        - sql:
+            sql: >
+              ALTER TABLE sales_invoice
+                ADD CONSTRAINT ck_sales_invoice_issued_has_number
+                CHECK (status = 'DRAFT' OR invoice_number IS NOT NULL)
+
+  - changeSet:
+      id: gst-phase6-004-sales-invoice-item
+      author: veloria
+      changes:
+        - createTable:
+            tableName: sales_invoice_item
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: sales_invoice_id, type: bigint, constraints: { nullable: false } }
+              - column: { name: order_item_id, type: bigint }
+              - column: { name: line_number, type: int }
+              - column: { name: product_uuid, type: uuid }
+              - column: { name: product_name, type: varchar(255) }
+              - column: { name: description, type: varchar(500) }
+              - column: { name: hsn_code, type: varchar(20) }
+              - column: { name: quantity, type: int, defaultValueNumeric: 1 }
+              - column: { name: unit, type: varchar(20), defaultValue: PCS }
+              - column: { name: unit_price, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: gross_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: discount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: taxable_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: gst_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: cgst_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: cgst_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: sgst_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: sgst_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: igst_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: igst_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cess_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: cess_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_tax, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+        - addForeignKeyConstraint:
+            baseTableName: sales_invoice_item
+            baseColumnNames: sales_invoice_id
+            constraintName: fk_sales_invoice_item_invoice
+            referencedTableName: sales_invoice
+            referencedColumnNames: id
+        - createIndex:
+            tableName: sales_invoice_item
+            indexName: idx_sales_invoice_item_invoice
+            columns: [{ column: { name: sales_invoice_id } }]
+        - sql:
+            sql: >
+              ALTER TABLE sales_invoice_item
+                ADD CONSTRAINT ck_sales_invoice_item_valid
+                CHECK (quantity > 0 AND unit_price >= 0 AND discount >= 0 AND taxable_value >= 0)
+
+  # ── Purchase invoice (spec phase 2) ──────────────────────────────────────
+  - changeSet:
+      id: gst-phase6-005-purchase-invoice
+      author: veloria
+      changes:
+        - createTable:
+            tableName: purchase_invoice
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+              - column: { name: purchase_order_id, type: bigint }
+              - column: { name: vendor_uuid, type: uuid }
+              - column: { name: vendor_gstin, type: varchar(15) }
+              - column: { name: vendor_name, type: varchar(255) }
+              - column: { name: vendor_state_code, type: varchar(2) }
+              - column: { name: vendor_invoice_number, type: varchar(100), constraints: { nullable: false } }
+              - column: { name: vendor_invoice_date, type: date }
+              - column: { name: invoice_type, type: varchar(20), defaultValue: B2B }
+              - column: { name: place_of_supply, type: varchar(2) }
+              - column: { name: supply_type, type: varchar(20) }
+              - column: { name: reverse_charge, type: boolean, defaultValueBoolean: false }
+              - column: { name: currency, type: varchar(5), defaultValue: INR }
+              - column: { name: gross_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: discount_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: taxable_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cgst_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: sgst_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: igst_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cess_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_tax, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_invoice_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: status, type: varchar(20), defaultValue: RECORDED }
+              - column: { name: tax_period, type: varchar(7) }
+              - column: { name: financial_year, type: varchar(7) }
+              - column: { name: input_tax_id, type: bigint }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+              - column: { name: created_by, type: varchar(100) }
+              - column: { name: updated_at, type: timestamp }
+        # A vendor cannot issue the same invoice number twice to one organization.
+        - addUniqueConstraint:
+            tableName: purchase_invoice
+            columnNames: organization_id, vendor_gstin, vendor_invoice_number
+            constraintName: uq_purchase_invoice_vendor_number
+        - createIndex:
+            tableName: purchase_invoice
+            indexName: idx_purchase_invoice_period
+            columns: [{ column: { name: organization_id } }, { column: { name: tax_period } }]
+        - sql:
+            sql: >
+              ALTER TABLE purchase_invoice
+                ADD CONSTRAINT ck_purchase_invoice_non_negative
+                CHECK (taxable_value >= 0 AND cgst_amount >= 0 AND sgst_amount >= 0
+                   AND igst_amount >= 0 AND cess_amount >= 0 AND total_tax >= 0)
+
+  - changeSet:
+      id: gst-phase6-006-purchase-invoice-item
+      author: veloria
+      changes:
+        - createTable:
+            tableName: purchase_invoice_item
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: purchase_invoice_id, type: bigint, constraints: { nullable: false } }
+              - column: { name: purchase_order_item_id, type: bigint }
+              - column: { name: line_number, type: int }
+              - column: { name: product_uuid, type: uuid }
+              - column: { name: product_name, type: varchar(255) }
+              - column: { name: description, type: varchar(500) }
+              - column: { name: hsn_code, type: varchar(20) }
+              - column: { name: quantity, type: int, defaultValueNumeric: 1 }
+              - column: { name: unit, type: varchar(20), defaultValue: PCS }
+              - column: { name: unit_price, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: gross_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: discount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: taxable_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: gst_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: cgst_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: cgst_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: sgst_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: sgst_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: igst_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: igst_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cess_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: cess_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_tax, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+        - addForeignKeyConstraint:
+            baseTableName: purchase_invoice_item
+            baseColumnNames: purchase_invoice_id
+            constraintName: fk_purchase_invoice_item_invoice
+            referencedTableName: purchase_invoice
+            referencedColumnNames: id
+        - createIndex:
+            tableName: purchase_invoice_item
+            indexName: idx_purchase_invoice_item_invoice
+            columns: [{ column: { name: purchase_invoice_id } }]
+        - sql:
+            sql: >
+              ALTER TABLE purchase_invoice_item
+                ADD CONSTRAINT ck_purchase_invoice_item_valid
+                CHECK (quantity > 0 AND unit_price >= 0 AND discount >= 0 AND taxable_value >= 0)
+
+  # ── Discounts, shipping and cess on the order (spec phases 11-13) ────────
+  - changeSet:
+      id: gst-phase6-007-order-commercial-fields
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: customer_order
+            columns:
+              - column: { name: gross_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: discount_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: coupon_code, type: varchar(40) }
+              - column: { name: shipping_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: shipping_taxable_value, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cess_amount, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: round_off, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: customer_legal_name, type: varchar(255) }
+        - addColumn:
+            tableName: customer_order_item
+            columns:
+              - column: { name: gross_value_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: discount_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cess_rate_bp, type: int, defaultValueNumeric: 0 }
+              - column: { name: cess_amount, type: bigint, defaultValueNumeric: 0 }
+        - sql:
+            sql: >
+              UPDATE customer_order_item
+                 SET gross_value_paise = COALESCE(taxable_value_paise, 0)
+               WHERE gross_value_paise = 0 OR gross_value_paise IS NULL
+        - sql:
+            sql: >
+              UPDATE customer_order
+                 SET gross_value = COALESCE(taxable_value, 0)
+               WHERE gross_value = 0 OR gross_value IS NULL
+        # A discount can never make the taxable value negative.
+        - sql:
+            sql: >
+              ALTER TABLE customer_order_item
+                ADD CONSTRAINT ck_order_item_discount_within_gross
+                CHECK (COALESCE(discount_paise,0) >= 0
+                   AND COALESCE(discount_paise,0) <= COALESCE(gross_value_paise,0))
+
+  # ── Configurable GST behaviour (spec phases 12, 13, 26) ──────────────────
+  - changeSet:
+      id: gst-phase6-008-gst-configuration
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gst_configuration
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: config_key, type: varchar(80), constraints: { nullable: false } }
+              - column: { name: config_value, type: varchar(255) }
+              - column: { name: value_type, type: varchar(20), defaultValue: STRING }
+              - column: { name: description, type: text }
+              - column: { name: source_reference, type: varchar(255) }
+              - column: { name: effective_from, type: date }
+              - column: { name: effective_to, type: date }
+              - column: { name: active, type: boolean, defaultValueBoolean: true }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+              - column: { name: updated_by, type: varchar(100) }
+        - addUniqueConstraint:
+            tableName: gst_configuration
+            columnNames: organization_id, config_key, effective_from
+            constraintName: uq_gst_configuration_key
+        # Seeded as the application's default. The correct statutory treatment of
+        # shipping is a business/tax decision and is configurable here rather
+        # than hard-coded in the calculation engine.
+        - sql:
+            sql: >
+              INSERT INTO gst_configuration
+                    (organization_id, config_key, config_value, value_type, description, effective_from, active)
+              SELECT o.id, 'SHIPPING_TAX_TREATMENT', 'TAXABLE_AT_LINE_RATE', 'STRING',
+                     'How shipping is taxed: TAXABLE_AT_LINE_RATE apportions shipping across lines at each line''s rate; EXEMPT excludes it from the tax base. Confirm the correct treatment with your accountant.',
+                     DATE '2017-07-01', true
+                FROM organization o
+      rollback:
+        - sql:
+            sql: DELETE FROM gst_configuration WHERE config_key = 'SHIPPING_TAX_TREATMENT'
+
+  # ── Interest and late fee, versioned (spec phase 26) ─────────────────────
+  # No rates are seeded. An unconfigured rule surfaces as REQUIRES_CONFIGURATION
+  # rather than the application inventing a statutory rate.
+  - changeSet:
+      id: gst-phase6-009-interest-late-fee-rules
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gst_interest_rule
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: rule_type, type: varchar(40), constraints: { nullable: false } }
+              - column: { name: rate_bp, type: int }
+              - column: { name: calculation_method, type: varchar(40) }
+              - column: { name: description, type: text }
+              - column: { name: source_reference, type: varchar(255) }
+              - column: { name: effective_from, type: date, constraints: { nullable: false } }
+              - column: { name: effective_to, type: date }
+              - column: { name: active, type: boolean, defaultValueBoolean: true }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+        - createTable:
+            tableName: gst_late_fee_rule
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: return_type, type: varchar(20), constraints: { nullable: false } }
+              - column: { name: per_day_paise, type: bigint }
+              - column: { name: max_paise, type: bigint }
+              - column: { name: description, type: text }
+              - column: { name: source_reference, type: varchar(255) }
+              - column: { name: effective_from, type: date, constraints: { nullable: false } }
+              - column: { name: effective_to, type: date }
+              - column: { name: active, type: boolean, defaultValueBoolean: true }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }

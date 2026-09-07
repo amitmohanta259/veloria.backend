@@ -1,0 +1,59 @@
+databaseChangeLog:
+
+  # The chart of accounts, seeded as data so accounts can be added without a
+  # deployment. Every journal line resolves its account code against this list.
+  - changeSet:
+      id: acc-008-seed-chart-of-accounts
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              INSERT INTO chart_of_accounts
+                (code, name, account_type, normal_balance, subgroup, is_current, organization_id, active)
+              VALUES
+              ('1010','Cash','ASSET','DEBIT','Current assets',true,1,true),
+              ('1020','Bank','ASSET','DEBIT','Current assets',true,1,true),
+              ('1100','Accounts Receivable','ASSET','DEBIT','Current assets',true,1,true),
+              ('1200','Inventory','ASSET','DEBIT','Current assets',true,1,true),
+              ('1300','Input GST','ASSET','DEBIT','Current assets',true,1,true),
+              ('1500','Fixed Assets','ASSET','DEBIT','Non-current assets',false,1,true),
+              ('1510','Accumulated Depreciation','ASSET','CREDIT','Non-current assets',false,1,true),
+              ('2010','Accounts Payable','LIABILITY','CREDIT','Current liabilities',true,1,true),
+              ('2100','Output CGST','LIABILITY','CREDIT','Current liabilities',true,1,true),
+              ('2110','Output SGST','LIABILITY','CREDIT','Current liabilities',true,1,true),
+              ('2120','Output IGST','LIABILITY','CREDIT','Current liabilities',true,1,true),
+              ('2200','GST Payable','LIABILITY','CREDIT','Current liabilities',true,1,true),
+              ('2300','Salary Payable','LIABILITY','CREDIT','Current liabilities',true,1,true),
+              ('2400','Other Current Liabilities','LIABILITY','CREDIT','Current liabilities',true,1,true),
+              ('2900','Loans','LIABILITY','CREDIT','Non-current liabilities',false,1,true),
+              ('3010','Owner Capital','EQUITY','CREDIT','Equity',false,1,true),
+              ('3020','Retained Earnings','EQUITY','CREDIT','Equity',false,1,true),
+              ('3040','Drawings','EQUITY','DEBIT','Equity',false,1,true),
+              ('4010','Sales','REVENUE','CREDIT','Revenue',false,1,true),
+              ('4090','Other Income','REVENUE','CREDIT','Revenue',false,1,true),
+              ('5010','Cost of Goods Sold','EXPENSE','DEBIT','Cost of sales',false,1,true),
+              ('5100','Marketing','EXPENSE','DEBIT','Operating expenses',false,1,true),
+              ('5200','Payroll','EXPENSE','DEBIT','Operating expenses',false,1,true),
+              ('5300','Rent','EXPENSE','DEBIT','Operating expenses',false,1,true),
+              ('5400','Utilities','EXPENSE','DEBIT','Operating expenses',false,1,true),
+              ('5900','Other Operating Expenses','EXPENSE','DEBIT','Operating expenses',false,1,true)
+              ON CONFLICT (code) DO NOTHING
+
+  # Every month that already carries data needs an accounting period row, or the
+  # lock trigger has nothing to check against.
+  - changeSet:
+      id: acc-009-seed-accounting-periods
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              INSERT INTO accounting_period (period, period_start, period_end, financial_year, status, organization_id)
+              SELECT to_char(d, 'YYYY-MM'),
+                     date_trunc('month', d)::date,
+                     (date_trunc('month', d) + interval '1 month - 1 day')::date,
+                     CASE WHEN EXTRACT(MONTH FROM d) >= 4
+                          THEN EXTRACT(YEAR FROM d) || '-' || (EXTRACT(YEAR FROM d) + 1)
+                          ELSE (EXTRACT(YEAR FROM d) - 1) || '-' || EXTRACT(YEAR FROM d) END,
+                     'OPEN', 1
+                FROM generate_series('2025-04-01'::date, '2027-03-01'::date, '1 month') d
+              ON CONFLICT (period) DO NOTHING

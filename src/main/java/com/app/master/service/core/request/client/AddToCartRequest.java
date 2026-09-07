@@ -10,4 +10,5 @@ import java.util.UUID;
 public class AddToCartRequest {
     private UUID productUuid;
     private int quantity = 1;
+    private String size;
 }

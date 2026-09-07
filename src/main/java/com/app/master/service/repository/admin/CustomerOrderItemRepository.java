@@ -39,12 +39,12 @@ public interface CustomerOrderItemRepository extends JpaRepository<CustomerOrder
                    OR LOWER(ip.sku_id)        LIKE LOWER('%' || :search || '%'))
             """,
         value = """
-            SELECT coi.uuid              AS item_uuid,
+            SELECT coi.uuid                                          AS item_uuid,
                    co.order_code,
-                   ip.uuid               AS product_uuid,
-                   ip.name               AS product_name,
+                   ip.uuid                                          AS product_uuid,
+                   ip.name                                          AS product_name,
                    ip.sku_id,
-                   ip.price              AS unit_price,
+                   COALESCE(ip.selling_price, ip.price)             AS unit_price,
                    coi.currency,
                    co.customer_name,
                    co.customer_email,
@@ -89,12 +89,12 @@ public interface CustomerOrderItemRepository extends JpaRepository<CustomerOrder
                    OR LOWER(ip.sku_id)        LIKE LOWER('%' || :search || '%'))
             """,
         value = """
-            SELECT coi.uuid              AS item_uuid,
+            SELECT coi.uuid                                          AS item_uuid,
                    co.order_code,
-                   ip.uuid               AS product_uuid,
-                   ip.name               AS product_name,
+                   ip.uuid                                          AS product_uuid,
+                   ip.name                                          AS product_name,
                    ip.sku_id,
-                   ip.price              AS unit_price,
+                   COALESCE(ip.selling_price, ip.price)             AS unit_price,
                    coi.currency,
                    co.customer_name,
                    co.customer_email,
@@ -194,12 +194,12 @@ public interface CustomerOrderItemRepository extends JpaRepository<CustomerOrder
     Long sumReturnedItemValue();
 
     @Query(nativeQuery = true, value = """
-            SELECT COALESCE(SUM(ip.selling_price), 0)
+            SELECT COALESCE(SUM(COALESCE(ip.selling_price, ip.price)), 0)
             FROM customer_order_item coi
             JOIN customer_order co ON co.id = coi.customer_order_id
             JOIN inventory_product ip ON ip.uuid = coi.product_uuid
             WHERE coi.archive = false AND co.archive = false AND ip.archive = false
-              AND co.status IN ('ORDER_PLACED','IN_TRANSIT','DISPATCHED','DONE','DELIVERED')
+              AND co.status IN ('ORDER_PLACED','PACKED','IN_TRANSIT','DISPATCHED','DONE','DELIVERED')
               AND coi.reason_for_return IS NULL
             """)
     Long sumGrossSalesValue();

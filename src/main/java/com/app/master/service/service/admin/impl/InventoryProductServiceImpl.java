@@ -12,9 +12,12 @@ import com.app.master.service.core.response.admin.PerformanceLedgerResponse;
 import com.app.master.service.core.response.admin.TopSellerItemResponse;
 import com.app.master.service.core.service.AppService;
 import com.app.master.service.core.service.AwsService;
+import com.app.master.service.core.dto.SizeStock;
+import com.app.master.service.core.entity.InventoryProductSizeStockEntity;
 import com.app.master.service.repository.admin.CustomerOrderItemRepository;
 import com.app.master.service.repository.admin.InventoryProductImagesRepository;
 import com.app.master.service.repository.admin.InventoryProductRepository;
+import com.app.master.service.repository.admin.InventoryProductSizeStockRepository;
 import com.app.master.service.repository.admin.InventorySubCategoryRepository;
 import com.app.master.service.service.admin.InventoryProductService;
 import com.google.common.base.Strings;
@@ -44,16 +47,19 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
     private final InventoryProductImagesRepository imagesRepository;
     private final InventorySubCategoryRepository subCategoryRepository;
     private final CustomerOrderItemRepository orderItemRepository;
+    private final InventoryProductSizeStockRepository sizeStockRepository;
     private final AwsService awsService;
     private final Executor taskExecutor;
 
     public InventoryProductServiceImpl(InventoryProductRepository productRepository, InventoryProductImagesRepository imagesRepository,
                                        InventorySubCategoryRepository subCategoryRepository, CustomerOrderItemRepository orderItemRepository,
+                                       InventoryProductSizeStockRepository sizeStockRepository,
                                        AwsService awsService, @Qualifier("taskExecutor") Executor taskExecutor) {
         this.productRepository = productRepository;
         this.imagesRepository = imagesRepository;
         this.subCategoryRepository = subCategoryRepository;
         this.orderItemRepository = orderItemRepository;
+        this.sizeStockRepository = sizeStockRepository;
         this.awsService = awsService;
         this.taskExecutor = taskExecutor;
     }
@@ -64,6 +70,7 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
         InventorySubCategoryEntity subCategoryEntity = subCategoryRepository.findByUuid(subCategoryUuid)
                 .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid sub-category uuid"));
 
+        long totalStock = computeTotalStock(product);
         InventoryProductEntity entity = InventoryProductEntity.builder()
                 .subCategoryId(subCategoryEntity.getId())
                 .name(product.getName())
@@ -72,16 +79,20 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
                 .price(product.getPrice())
                 .sellingPrice(product.getSellingPrice())
                 .priceCurrency(product.getPriceCurrency())
-                .initialStock(product.getInitialStock())
+                .initialStock(totalStock)
                 .visibility(product.getVisibility())
                 .visibilityDate(Instant.now())
                 .draft(product.getDraft() != null ? product.getDraft() : Boolean.TRUE)
                 .gender(product.getGender())
                 .dimensions(product.getDimensions())
                 .supplierUuid(product.getSupplierUuid())
+                .colour(product.getColour())
+                .wearType(product.getWearType())
+                .hsnCode(product.getHsnCode())
                 .build();
 
         productRepository.save(entity);
+        saveSizeStocks(entity.getId(), product.getSizeStocks());
         uploadProductImages(entity.getId(), subCategoryEntity.getName(), images, product.getName());
     }
 
@@ -104,9 +115,18 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
         existing.setGender(product.getGender());
         existing.setDimensions(product.getDimensions());
         existing.setSupplierUuid(product.getSupplierUuid());
+        existing.setColour(product.getColour());
+        existing.setWearType(product.getWearType());
+        existing.setHsnCode(product.getHsnCode());
+        existing.setInitialStock(computeTotalStock(product));
 
         productRepository.save(existing);
-        uploadProductImages(existing.getId(), getSubCategoryName(existing.getSubCategoryId()), images, product.getName());
+        // Replace size stocks
+        sizeStockRepository.findByProductIdAndArchiveFalseOrderByIdAsc(existing.getId())
+                .forEach(s -> { s.setArchive(true); sizeStockRepository.save(s); });
+        saveSizeStocks(existing.getId(), product.getSizeStocks());
+        String subCategoryName = getSubCategoryName(existing.getSubCategoryId());
+        uploadProductImages(existing.getId(), subCategoryName, images, product.getName());
     }
 
     @Override
@@ -115,7 +135,37 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
         InventoryProductEntity existing = productRepository.findByUuid(uuid)
                 .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid product uuid"));
 
-        return existing.toDto();
+        InventoryProduct dto = existing.toDto();
+        List<SizeStock> sizeStocks = sizeStockRepository.findCurrentStockByProductId(existing.getId()).stream()
+                .map(row -> SizeStock.builder()
+                        .size((String) row[0])
+                        .stock(row[1] instanceof Long l ? l : ((Number) row[1]).longValue())
+                        .currentStock(row[2] instanceof Long l ? l : ((Number) row[2]).longValue())
+                        .build())
+                .collect(Collectors.toList());
+        dto.setSizeStocks(sizeStocks);
+        return dto;
+    }
+
+    private long computeTotalStock(InventoryProduct product) {
+        if (product.getSizeStocks() != null && !product.getSizeStocks().isEmpty()) {
+            return product.getSizeStocks().stream()
+                    .mapToLong(s -> s.getStock() != null ? s.getStock() : 0L)
+                    .sum();
+        }
+        return product.getInitialStock() != null ? product.getInitialStock() : 0L;
+    }
+
+    private void saveSizeStocks(Long productId, List<SizeStock> sizeStocks) {
+        if (sizeStocks == null || sizeStocks.isEmpty()) return;
+        for (SizeStock s : sizeStocks) {
+            if (s.getSize() == null || s.getSize().isBlank()) continue;
+            sizeStockRepository.save(InventoryProductSizeStockEntity.builder()
+                    .productId(productId)
+                    .size(s.getSize().trim())
+                    .initialStock(s.getStock() != null ? s.getStock() : 0L)
+                    .build());
+        }
     }
 
     @Override
@@ -157,7 +207,22 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
                 ? productRepository.getInventoryProductListBySubCategory(subCategoryUuid, search, pageable)
                 : productRepository.getInventoryProductList(search, pageable);
         attachPresignedImages(responses.getContent());
+        attachCurrentStock(responses.getContent());
         return responses;
+    }
+
+    private void attachCurrentStock(List<InventoryProductListResponse> products) {
+        if (products.isEmpty()) return;
+        List<UUID> uuids = products.stream().map(InventoryProductListResponse::getUuid).collect(Collectors.toList());
+        Map<UUID, Long> stockMap = new HashMap<>();
+        for (Object[] row : productRepository.findCurrentStockByUuids(uuids)) {
+            UUID uuid = row[0] instanceof UUID u ? u : UUID.fromString(row[0].toString());
+            long stock = row[1] instanceof Long l ? l : ((Number) row[1]).longValue();
+            stockMap.put(uuid, stock);
+        }
+        for (InventoryProductListResponse p : products) {
+            p.setCurrentStock(stockMap.getOrDefault(p.getUuid(), p.getInitialStock()));
+        }
     }
 
     private void attachPresignedImages(List<InventoryProductListResponse> products) {
@@ -309,6 +374,33 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
                     .currency(currency).imageUrl(imageUrl)
                     .build();
         }).toList();
+    }
+
+    @Override
+    public void addStock(UUID productUuid, String size, long qty) throws VeloriaException {
+        InventoryProductEntity product = productRepository.findByUuid(productUuid)
+                .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid product uuid"));
+
+        if (size != null && !size.isBlank()) {
+            List<InventoryProductSizeStockEntity> existing = sizeStockRepository
+                    .findByProductIdAndArchiveFalseOrderByIdAsc(product.getId());
+            InventoryProductSizeStockEntity sizeEntity = existing.stream()
+                    .filter(s -> size.trim().equalsIgnoreCase(s.getSize()))
+                    .findFirst().orElse(null);
+            if (sizeEntity != null) {
+                sizeEntity.setInitialStock(sizeEntity.getInitialStock() + qty);
+                sizeStockRepository.save(sizeEntity);
+            } else {
+                sizeStockRepository.save(InventoryProductSizeStockEntity.builder()
+                        .productId(product.getId()).size(size.trim()).initialStock(qty).build());
+            }
+            long total = sizeStockRepository.findByProductIdAndArchiveFalseOrderByIdAsc(product.getId())
+                    .stream().mapToLong(InventoryProductSizeStockEntity::getInitialStock).sum();
+            product.setInitialStock(total);
+        } else {
+            product.setInitialStock((product.getInitialStock() != null ? product.getInitialStock() : 0L) + qty);
+        }
+        productRepository.save(product);
     }
 
     private String getSubCategoryName(Long subCategoryId) throws VeloriaException {

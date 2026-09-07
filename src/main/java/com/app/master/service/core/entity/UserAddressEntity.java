@@ -31,6 +31,10 @@ public class UserAddressEntity {
     @Column(columnDefinition = "TEXT")
     private String address;
 
+    private String city;
+    private String stateCode;
+    private String pincode;
+
     private Boolean isDefault;
 
     private Boolean active;

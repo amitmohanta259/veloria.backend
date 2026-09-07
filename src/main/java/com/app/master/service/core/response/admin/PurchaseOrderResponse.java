@@ -2,6 +2,7 @@ package com.app.master.service.core.response.admin;
 
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,4 +26,21 @@ public class PurchaseOrderResponse {
     private String invoiceUrl;
     private String created;
     private List<PurchaseOrderItemResponse> items;
+
+    // GST fields extracted from invoice PDF
+    private String vendorGstin;
+    private String vendorStateCode;
+    private String vendorInvoiceNumber;
+    private String vendorInvoiceDate;
+    private Long taxableAmount;
+    private Long cgstAmount;
+    private Long sgstAmount;
+    private Long igstAmount;
+    private Long totalGst;
+    private BigDecimal gstRate;
+    private String financialYear;
+    private String taxPeriod;
+    private String gstExtractionStatus;
+    private String itcEligibility;
+    private String itcStatus;
 }

@@ -70,6 +70,9 @@ public class ClientProfileServiceImpl extends AppService implements ClientProfil
                 .receiverName(request.getReceiverName())
                 .phone(request.getPhone())
                 .address(request.getAddress())
+                .city(request.getCity())
+                .stateCode(request.getStateCode())
+                .pincode(request.getPincode())
                 .isDefault(request.isDefault())
                 .active(true)
                 .archive(false)
@@ -94,6 +97,9 @@ public class ClientProfileServiceImpl extends AppService implements ClientProfil
                 .receiverName(a.getReceiverName())
                 .phone(a.getPhone())
                 .address(a.getAddress())
+                .city(a.getCity())
+                .stateCode(a.getStateCode())
+                .pincode(a.getPincode())
                 .isDefault(Boolean.TRUE.equals(a.getIsDefault()))
                 .build();
     }

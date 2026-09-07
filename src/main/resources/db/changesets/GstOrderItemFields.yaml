@@ -1,0 +1,38 @@
+databaseChangeLog:
+  - changeSet:
+      id: add_gst_fields_to_customer_order_item
+      author: admin
+      changes:
+        - addColumn:
+            tableName: customer_order_item
+            columns:
+              - column:
+                  name: unit_price_paise
+                  type: bigint
+              - column:
+                  name: hsn_code
+                  type: varchar(20)
+              - column:
+                  name: cgst_rate_bp
+                  type: int
+                  defaultValueNumeric: 0
+              - column:
+                  name: sgst_rate_bp
+                  type: int
+                  defaultValueNumeric: 0
+              - column:
+                  name: igst_rate_bp
+                  type: int
+                  defaultValueNumeric: 0
+              - column:
+                  name: cgst_amount
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: sgst_amount
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: igst_amount
+                  type: bigint
+                  defaultValueNumeric: 0

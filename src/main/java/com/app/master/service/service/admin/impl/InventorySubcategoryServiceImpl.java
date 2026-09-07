@@ -90,9 +90,24 @@ public class InventorySubcategoryServiceImpl extends AppService implements Inven
 
     @Override
     public java.util.List<InventoryCollectionAllResponse> listAllInventorySubCategory(UUID collectionUuid) throws VeloriaException {
-        return collectionUuid != null
-                ? repository.listAllInventorySubCategoryByCollection(collectionUuid)
-                : repository.listAllInventorySubCategory();
+        if (collectionUuid != null) {
+            return repository.listAllInventorySubCategoryByCollection(collectionUuid);
+        }
+        return repository.listAllInventorySubCategoryWithStats().stream()
+                .map(row -> {
+                    UUID uuid        = row[0] instanceof UUID u ? u : UUID.fromString(row[0].toString());
+                    String name      = (String) row[1];
+                    String desc      = (String) row[2];
+                    Boolean active   = (Boolean) row[3];
+                    String parent    = (String) row[4];
+                    long soldQty     = row[5] instanceof Long l ? l : ((Number) row[5]).longValue();
+                    long inInventory = row[6] instanceof Long l ? l : ((Number) row[6]).longValue();
+                    InventoryCollectionAllResponse r = new InventoryCollectionAllResponse(uuid, name, desc, active, parent);
+                    r.setSoldQty(soldQty);
+                    r.setInInventory(inInventory);
+                    return r;
+                })
+                .collect(java.util.stream.Collectors.toList());
     }
 
     @Override

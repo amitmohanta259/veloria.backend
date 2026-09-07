@@ -1,0 +1,37 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_gst_hsn_master
+      author: admin
+      changes:
+        - createTable:
+            tableName: gst_hsn_master
+            columns:
+              - column:
+                  name: id
+                  type: bigserial
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: hsn_code
+                  type: varchar(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: varchar(500)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: chapter
+                  type: varchar(4)
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+        - createIndex:
+            tableName: gst_hsn_master
+            indexName: idx_gst_hsn_master_code
+            columns:
+              - column:
+                  name: hsn_code

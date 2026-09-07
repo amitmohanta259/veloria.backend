@@ -1,0 +1,509 @@
+databaseChangeLog:
+
+  # ── Phase 1: correctness & safety ────────────────────────────────────────
+  # Idempotency at the database level. Application-level exists()-then-insert
+  # races when two admins verify the same return concurrently.
+  - changeSet:
+      id: gst-phase1-001-ledger-idempotency
+      author: veloria
+      changes:
+        - addUniqueConstraint:
+            tableName: gst_movement_ledger
+            columnNames: source_type, source_id
+            constraintName: uq_gst_movement_source
+
+  # Records a GST operation that could not complete. Replaces the silent
+  # catch blocks in order placement, invoice upload and return verification.
+  - changeSet:
+      id: gst-phase1-002-accounting-exception
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gst_accounting_exception
+            columns:
+              - column:
+                  name: id
+                  type: bigserial
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: operation
+                  type: varchar(60)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: source_type
+                  type: varchar(50)
+              - column:
+                  name: source_id
+                  type: bigint
+              - column:
+                  name: source_document_number
+                  type: varchar(100)
+              - column:
+                  name: status
+                  type: varchar(30)
+                  defaultValue: PENDING_REVIEW
+                  constraints:
+                    nullable: false
+              - column:
+                  name: error_message
+                  type: text
+              - column:
+                  name: error_detail
+                  type: text
+              - column:
+                  name: resolved_at
+                  type: timestamp
+              - column:
+                  name: resolved_by
+                  type: varchar(100)
+              - column:
+                  name: resolution_notes
+                  type: text
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+        - createIndex:
+            tableName: gst_accounting_exception
+            indexName: idx_gst_exception_status
+            columns:
+              - column:
+                  name: status
+        - createIndex:
+            tableName: gst_accounting_exception
+            indexName: idx_gst_exception_source
+            columns:
+              - column:
+                  name: source_type
+              - column:
+                  name: source_id
+
+  # gst_audit_log already exists from GstAccounting005; extend it rather than
+  # duplicating (spec section 37). Existing columns changed_by / changed_at are
+  # kept as-is so nothing that already reads this table breaks.
+  - changeSet:
+      id: gst-phase1-003-audit-log-extend
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: gst_audit_log
+            columns:
+              - column:
+                  name: entity_reference
+                  type: varchar(100)
+              - column:
+                  name: field_name
+                  type: varchar(60)
+              - column:
+                  name: tax_period
+                  type: varchar(7)
+        - createIndex:
+            tableName: gst_audit_log
+            indexName: idx_gst_audit_entity
+            columns:
+              - column:
+                  name: entity_type
+              - column:
+                  name: entity_id
+        - createIndex:
+            tableName: gst_audit_log
+            indexName: idx_gst_audit_period
+            columns:
+              - column:
+                  name: tax_period
+
+  # ── Phase 2: item-level GST foundation ───────────────────────────────────
+  # quantity is the core omission: the client already sends it, the DTO drops it.
+  - changeSet:
+      id: gst-phase2-001-order-item-quantity
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: customer_order_item
+            columns:
+              - column:
+                  name: quantity
+                  type: int
+                  defaultValueNumeric: 1
+                  constraints:
+                    nullable: false
+              - column:
+                  name: returned_quantity
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: taxable_value_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: total_tax_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+        - sql:
+            sql: >
+              ALTER TABLE customer_order_item
+                ADD CONSTRAINT ck_order_item_quantity_positive CHECK (quantity > 0)
+        - sql:
+            sql: >
+              ALTER TABLE customer_order_item
+                ADD CONSTRAINT ck_order_item_returned_qty
+                CHECK (returned_quantity >= 0 AND returned_quantity <= quantity)
+
+  # Backfill: every existing row is 1 unit, taxable value = unit price.
+  - changeSet:
+      id: gst-phase2-002-backfill-item-values
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              UPDATE customer_order_item
+                 SET quantity = 1,
+                     taxable_value_paise = COALESCE(unit_price_paise, 0),
+                     total_tax_paise = COALESCE(cgst_amount, 0)
+                                     + COALESCE(sgst_amount, 0)
+                                     + COALESCE(igst_amount, 0)
+               WHERE taxable_value_paise IS NULL OR taxable_value_paise = 0
+
+  # GST processing status on the order, so a failed GST write is visible
+  # instead of being swallowed. Also the B2B/B2C snapshot (spec section 5).
+  - changeSet:
+      id: gst-phase2-003-order-gst-status
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: customer_order
+            columns:
+              - column:
+                  name: gst_status
+                  type: varchar(30)
+                  defaultValue: POSTED
+              - column:
+                  name: customer_type
+                  type: varchar(10)
+                  defaultValue: B2C
+              - column:
+                  name: customer_gstin
+                  type: varchar(20)
+              - column:
+                  name: seller_gstin
+                  type: varchar(20)
+
+  # Ledger rows become item-level; link back to the order item.
+  - changeSet:
+      id: gst-phase2-004-ledger-item-link
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: gst_movement_ledger
+            columns:
+              - column:
+                  name: order_item_id
+                  type: bigint
+              - column:
+                  name: returned_quantity
+                  type: int
+        - createIndex:
+            tableName: gst_movement_ledger
+            indexName: idx_gst_movement_order_item
+            columns:
+              - column:
+                  name: order_item_id
+
+  # ── Phase 3: return redesign ─────────────────────────────────────────────
+  # Extends the existing order_return_request rather than adding a parallel
+  # table. Separates the GST decision from the physical inventory condition
+  # (spec section 11).
+  - changeSet:
+      id: gst-phase3-001-return-request-fields
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: order_return_request
+            columns:
+              - column:
+                  name: return_number
+                  type: varchar(40)
+              - column:
+                  name: status
+                  type: varchar(30)
+                  defaultValue: REQUESTED
+              - column:
+                  name: gst_adjustment_required
+                  type: boolean
+                  defaultValueBoolean: true
+              - column:
+                  name: gst_adjustment_status
+                  type: varchar(30)
+                  defaultValue: NOT_STARTED
+              - column:
+                  name: gst_adjustment_reason
+                  type: text
+              - column:
+                  name: credit_note_id
+                  type: bigint
+              - column:
+                  name: verified_at
+                  type: timestamp
+              - column:
+                  name: verified_by
+                  type: varchar(100)
+        - addUniqueConstraint:
+            tableName: order_return_request
+            columnNames: return_number
+            constraintName: uq_return_request_number
+
+  # Line items of a return: which order item, how many units.
+  - changeSet:
+      id: gst-phase3-002-return-item
+      author: veloria
+      changes:
+        - createTable:
+            tableName: order_return_item
+            columns:
+              - column:
+                  name: id
+                  type: bigserial
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: return_request_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: order_item_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: product_uuid
+                  type: uuid
+              - column:
+                  name: product_name
+                  type: varchar(255)
+              - column:
+                  name: hsn_code
+                  type: varchar(20)
+              - column:
+                  name: quantity
+                  type: int
+                  constraints:
+                    nullable: false
+              - column:
+                  name: return_condition
+                  type: varchar(30)
+              - column:
+                  name: unit_price_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: taxable_value_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: cgst_rate_bp
+                  type: int
+                  defaultValueNumeric: 0
+              - column:
+                  name: sgst_rate_bp
+                  type: int
+                  defaultValueNumeric: 0
+              - column:
+                  name: igst_rate_bp
+                  type: int
+                  defaultValueNumeric: 0
+              - column:
+                  name: cgst_amount_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: sgst_amount_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: igst_amount_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: total_tax_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+        - sql:
+            sql: >
+              ALTER TABLE order_return_item
+                ADD CONSTRAINT ck_return_item_quantity_positive CHECK (quantity > 0)
+        - addForeignKeyConstraint:
+            baseTableName: order_return_item
+            baseColumnNames: return_request_id
+            constraintName: fk_return_item_request
+            referencedTableName: order_return_request
+            referencedColumnNames: id
+        - createIndex:
+            tableName: order_return_item
+            indexName: idx_return_item_request
+            columns:
+              - column:
+                  name: return_request_id
+        - createIndex:
+            tableName: order_return_item
+            indexName: idx_return_item_order_item
+            columns:
+              - column:
+                  name: order_item_id
+
+  # Credit note line items (spec section 15).
+  - changeSet:
+      id: gst-phase3-003-credit-note-item
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gst_credit_note_item
+            columns:
+              - column:
+                  name: id
+                  type: bigserial
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: credit_note_id
+                  type: bigint
+                  constraints:
+                    nullable: false
+              - column:
+                  name: order_item_id
+                  type: bigint
+              - column:
+                  name: return_item_id
+                  type: bigint
+              - column:
+                  name: product_uuid
+                  type: uuid
+              - column:
+                  name: product_name
+                  type: varchar(255)
+              - column:
+                  name: hsn_code
+                  type: varchar(20)
+              - column:
+                  name: quantity
+                  type: int
+                  constraints:
+                    nullable: false
+              - column:
+                  name: unit_price_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: taxable_value_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: cgst_rate_bp
+                  type: int
+                  defaultValueNumeric: 0
+              - column:
+                  name: sgst_rate_bp
+                  type: int
+                  defaultValueNumeric: 0
+              - column:
+                  name: igst_rate_bp
+                  type: int
+                  defaultValueNumeric: 0
+              - column:
+                  name: cgst_amount_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: sgst_amount_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: igst_amount_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: total_tax_paise
+                  type: bigint
+                  defaultValueNumeric: 0
+              - column:
+                  name: created_at
+                  type: timestamp
+                  defaultValueComputed: CURRENT_TIMESTAMP
+        - addForeignKeyConstraint:
+            baseTableName: gst_credit_note_item
+            baseColumnNames: credit_note_id
+            constraintName: fk_credit_note_item_note
+            referencedTableName: gst_credit_note
+            referencedColumnNames: id
+        - createIndex:
+            tableName: gst_credit_note_item
+            indexName: idx_credit_note_item_note
+            columns:
+              - column:
+                  name: credit_note_id
+
+  # Credit note lifecycle (spec section 16) and multi-return support.
+  # The old unique-per-order assumption is gone: an order can now have
+  # several credit notes, one per return event.
+  - changeSet:
+      id: gst-phase3-004-credit-note-lifecycle
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: gst_credit_note
+            columns:
+              - column:
+                  name: reason_code
+                  type: varchar(40)
+              - column:
+                  name: approved_by
+                  type: varchar(100)
+              - column:
+                  name: approved_at
+                  type: timestamp
+              - column:
+                  name: issued_at
+                  type: timestamp
+              - column:
+                  name: reported_at
+                  type: timestamp
+              - column:
+                  name: reporting_status
+                  type: varchar(30)
+                  defaultValue: NOT_REPORTED
+              - column:
+                  name: original_invoice_date
+                  type: date
+              - column:
+                  name: created_by
+                  type: varchar(100)
+        - addUniqueConstraint:
+            tableName: gst_credit_note
+            columnNames: return_request_id
+            constraintName: uq_credit_note_return_request
+        - createIndex:
+            tableName: gst_credit_note
+            indexName: idx_credit_note_order_code
+            columns:
+              - column:
+                  name: original_order_code
+
+  # Existing credit notes were created straight into ISSUED with no history.
+  - changeSet:
+      id: gst-phase3-005-backfill-credit-note-status
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              UPDATE gst_credit_note
+                 SET issued_at = created_at,
+                     reporting_status = 'NOT_REPORTED'
+               WHERE issued_at IS NULL

@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: add_seller_state_to_business_details
+      author: admin
+      changes:
+        - addColumn:
+            tableName: business_details
+            columns:
+              - column:
+                  name: seller_state_code
+                  type: varchar(2)

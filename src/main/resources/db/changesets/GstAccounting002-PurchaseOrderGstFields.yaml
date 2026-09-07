@@ -1,0 +1,21 @@
+databaseChangeLog:
+  - changeSet:
+      id: gst-accounting-002-po-gst-fields
+      author: veloria
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE purchase_order
+                ADD COLUMN IF NOT EXISTS vendor_gstin VARCHAR(15),
+                ADD COLUMN IF NOT EXISTS vendor_state_code VARCHAR(2),
+                ADD COLUMN IF NOT EXISTS vendor_invoice_number VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS vendor_invoice_date DATE,
+                ADD COLUMN IF NOT EXISTS taxable_amount BIGINT DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS cgst_amount BIGINT DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS sgst_amount BIGINT DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS igst_amount BIGINT DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS total_gst BIGINT DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS gst_rate NUMERIC(5,2),
+                ADD COLUMN IF NOT EXISTS financial_year VARCHAR(7),
+                ADD COLUMN IF NOT EXISTS tax_period VARCHAR(7),
+                ADD COLUMN IF NOT EXISTS gst_extraction_status VARCHAR(20) DEFAULT 'PENDING';

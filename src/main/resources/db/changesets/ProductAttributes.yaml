@@ -1,0 +1,17 @@
+databaseChangeLog:
+  - changeSet:
+      id: add_colour_size_wear_type_to_inventory_product
+      author: admin
+      changes:
+        - addColumn:
+            tableName: inventory_product
+            columns:
+              - column:
+                  name: colour
+                  type: varchar(100)
+              - column:
+                  name: size
+                  type: varchar(20)
+              - column:
+                  name: wear_type
+                  type: varchar(20)

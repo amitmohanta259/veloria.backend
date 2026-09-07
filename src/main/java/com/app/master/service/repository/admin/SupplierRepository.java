@@ -55,4 +55,6 @@ public interface SupplierRepository extends JpaRepository<SupplierEntity, Long> 
     List<SupplierListResponse> listAllSuppliers();
 
     long countByStatus(String status);
+
+    List<SupplierEntity> findByCategoryInAndArchiveFalse(List<String> categories);
 }

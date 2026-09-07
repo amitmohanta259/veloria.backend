@@ -1,0 +1,33 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_gst_state_master
+      author: admin
+      changes:
+        - createTable:
+            tableName: gst_state_master
+            columns:
+              - column:
+                  name: id
+                  type: bigserial
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: state_code
+                  type: varchar(2)
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: state_name
+                  type: varchar(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_ut
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true

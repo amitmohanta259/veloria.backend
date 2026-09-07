@@ -1,27 +1,25 @@
 package com.app.master.service.service.admin.impl;
 
-import com.app.master.service.core.entity.SalesOrderEntity;
+import com.app.master.service.core.entity.CustomerOrderEntity;
 import com.app.master.service.core.response.admin.DashboardSummaryResponse;
 import com.app.master.service.core.response.admin.DashboardSummaryResponse.*;
-import com.app.master.service.repository.admin.SalesOrderRepository;
+import com.app.master.service.repository.admin.CustomerOrderRepository;
 import com.app.master.service.service.admin.DashboardService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.time.Month;
 import java.time.ZoneOffset;
-import java.time.format.TextStyle;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
 public class DashboardServiceImpl implements DashboardService {
 
-    private final SalesOrderRepository repo;
+    private final CustomerOrderRepository repo;
 
-    public DashboardServiceImpl(SalesOrderRepository repo) {
+    public DashboardServiceImpl(CustomerOrderRepository repo) {
         this.repo = repo;
     }
 
@@ -34,7 +32,7 @@ public class DashboardServiceImpl implements DashboardService {
         int prevMonth = month == 1 ? 12 : month - 1;
         int prevMonthYear = month == 1 ? prevYear : year;
 
-        // ── Stats ────────────────────────────────────────────────────────────
+        // ── Stats ─────────────────────────────────────────────────────────────
         long grossRev     = nvl(repo.sumRevenueByYearAndMonth(year, month));
         long prevRev      = nvl(repo.sumRevenueByYearAndMonth(prevMonthYear, prevMonth));
         double revGrowth  = growthPct(grossRev, prevRev);
@@ -50,7 +48,7 @@ public class DashboardServiceImpl implements DashboardService {
                 .totalOrders(totalOrders)
                 .build();
 
-        // ── Monthly chart ────────────────────────────────────────────────────
+        // ── Monthly chart ─────────────────────────────────────────────────────
         List<Object[]> monthlyRaw = repo.findMonthlyChartData(year, prevYear);
         Map<Integer, long[]> monthMap = new LinkedHashMap<>();
         for (Object[] r : monthlyRaw) {
@@ -67,7 +65,6 @@ public class DashboardServiceImpl implements DashboardService {
             monthlyActual.add(ChartPoint.builder().period(m).revenue(d[0]).orders(d[1]).build());
         }
 
-        // Forecast: flat average of last 3 available months
         List<Long> recentRevs = monthlyActual.stream()
                 .filter(p -> p.getRevenue() > 0)
                 .map(ChartPoint::getRevenue)
@@ -80,7 +77,7 @@ public class DashboardServiceImpl implements DashboardService {
             monthlyForecast.add(ChartPoint.builder().period(m).revenue(forecastRev).orders(0L).build());
         }
 
-        // ── Quarterly chart ──────────────────────────────────────────────────
+        // ── Quarterly chart ───────────────────────────────────────────────────
         List<Object[]> quarterlyRaw = repo.findQuarterlyChartData(year, prevYear);
         Map<Integer, long[]> qMap = new LinkedHashMap<>();
         for (Object[] r : quarterlyRaw) {
@@ -104,16 +101,18 @@ public class DashboardServiceImpl implements DashboardService {
 
         List<ChartPoint> quarterlyForecast = new ArrayList<>();
         for (int q = currentQuarter + 1; q <= 4; q++) {
-            quarterlyForecast.add(ChartPoint.builder().period(q).revenue((long) forecastQRev).orders(0L).build());
+            quarterlyForecast.add(ChartPoint.builder().period(q).revenue(forecastQRev).orders(0L).build());
         }
 
-        // ── Category allocation ──────────────────────────────────────────────
+        // ── Category allocation ───────────────────────────────────────────────
         List<Object[]> catRaw = repo.findRevenueByCategory();
         long totalCatRev = catRaw.stream().mapToLong(r -> ((Number) r[1]).longValue()).sum();
         List<CategorySlice> categoryAllocation = catRaw.stream()
                 .map(r -> {
                     long rev = ((Number) r[1]).longValue();
-                    double share = totalCatRev > 0 ? Math.round((rev * 100.0 / totalCatRev) * 10.0) / 10.0 : 0.0;
+                    double share = totalCatRev > 0
+                            ? Math.round((rev * 100.0 / totalCatRev) * 10.0) / 10.0
+                            : 0.0;
                     return CategorySlice.builder()
                             .category((String) r[0])
                             .revenue(rev)
@@ -122,8 +121,8 @@ public class DashboardServiceImpl implements DashboardService {
                 })
                 .toList();
 
-        // ── Recent orders (first 10) ─────────────────────────────────────────
-        Page<SalesOrderEntity> recentPage = repo.findRecentOrders(null, PageRequest.of(0, 10));
+        // ── Recent orders (first 10) ──────────────────────────────────────────
+        Page<CustomerOrderEntity> recentPage = repo.findRecentOrders(null, PageRequest.of(0, 10));
         List<RecentOrderRow> recentOrders = recentPage.getContent().stream()
                 .map(this::toRow)
                 .toList();
@@ -146,16 +145,15 @@ public class DashboardServiceImpl implements DashboardService {
         return repo.findRecentOrders(statusParam, PageRequest.of(page, size)).map(this::toRow);
     }
 
-    private RecentOrderRow toRow(SalesOrderEntity e) {
+    private RecentOrderRow toRow(CustomerOrderEntity e) {
         String badgeType = switch (e.getStatus() != null ? e.getStatus() : "") {
             case "DISPATCHED" -> "dark";
-            case "ORDER_PLACED", "IN_TRANSIT", "PLACED" -> "outline";
+            case "ORDER_PLACED", "IN_TRANSIT", "PACKED", "PLACED" -> "outline";
             case "DONE", "DELIVERED", "RETURNED", "CANCELLED" -> "muted";
             default -> "outline";
         };
         String placedAt = e.getOrderPlacedAt() != null
-                ? e.getOrderPlacedAt().atZone(ZoneOffset.UTC)
-                    .toLocalDate().toString()
+                ? e.getOrderPlacedAt().atZone(ZoneOffset.UTC).toLocalDate().toString()
                 : "—";
         return RecentOrderRow.builder()
                 .orderCode(e.getOrderCode())

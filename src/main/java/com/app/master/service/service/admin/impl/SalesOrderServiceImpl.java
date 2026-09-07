@@ -1,6 +1,7 @@
 package com.app.master.service.service.admin.impl;
 
 import com.app.master.service.core.dto.SalesOrderRequest;
+import com.app.master.service.core.entity.CustomerOrderEntity;
 import com.app.master.service.core.entity.InventoryProductEntity;
 import com.app.master.service.core.entity.SalesOrderEntity;
 import com.app.master.service.core.exception.VeloriaException;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.Year;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -53,7 +55,8 @@ public class SalesOrderServiceImpl extends AppService implements SalesOrderServi
         String code = String.format("SAL-%d-%04d", Year.now().getValue(), count + 1);
 
         int qty = request.getQuantity() != null && request.getQuantity() > 0 ? request.getQuantity() : 1;
-        long total = product.getPrice() * qty;
+        long unitPrice = product.getSellingPrice() != null ? product.getSellingPrice() : (product.getPrice() != null ? product.getPrice() : 0L);
+        long total = unitPrice * qty;
         String currency = !Strings.isNullOrEmpty(request.getCurrency())
                 ? request.getCurrency()
                 : product.getPriceCurrency() != null ? product.getPriceCurrency().name() : "INR";
@@ -64,7 +67,7 @@ public class SalesOrderServiceImpl extends AppService implements SalesOrderServi
                 .productName(product.getName())
                 .skuId(product.getSkuId())
                 .quantity(qty)
-                .unitPrice(product.getPrice())
+                .unitPrice(unitPrice)
                 .totalValue(total)
                 .currency(currency)
                 .customerName(request.getCustomerName())
@@ -106,6 +109,44 @@ public class SalesOrderServiceImpl extends AppService implements SalesOrderServi
                 .done(done)
                 .totalRevenue(revenue != null ? revenue : 0L)
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void updateOrderStatus(String orderCode, String newStatus) throws VeloriaException {
+        CustomerOrderEntity order = customerOrderRepository.findByOrderCodeAndArchiveFalse(orderCode)
+                .orElseThrow(() -> new VeloriaException(ResponseCode.NOT_FOUND, "Order not found: " + orderCode));
+        order.setStatus(newStatus);
+        if ("DELIVERED".equals(newStatus) && order.getDeliveredAt() == null) {
+            order.setDeliveredAt(Instant.now());
+        }
+        customerOrderRepository.save(order);
+        // mirror status on every sales_order line for this order code prefix
+        repository.findAll().stream()
+                .filter(s -> s.getOrderCode() != null && s.getOrderCode().startsWith(orderCode)
+                        && !Boolean.TRUE.equals(s.getArchive()))
+                .forEach(s -> { s.setStatus(newStatus); repository.save(s); });
+    }
+
+    @Override
+    @Transactional
+    public void cancelOrder(String orderCode, String reason) throws VeloriaException {
+        CustomerOrderEntity order = customerOrderRepository.findByOrderCodeAndArchiveFalse(orderCode)
+                .orElseThrow(() -> new VeloriaException(ResponseCode.NOT_FOUND, "Order not found: " + orderCode));
+        order.setStatus("CANCELLED");
+        order.setCancelReason(reason);
+        customerOrderRepository.save(order);
+        repository.findAll().stream()
+                .filter(s -> s.getOrderCode() != null && s.getOrderCode().startsWith(orderCode)
+                        && !Boolean.TRUE.equals(s.getArchive()))
+                .forEach(s -> { s.setStatus("CANCELLED"); repository.save(s); });
+    }
+
+    @Override
+    public List<SalesOrderResponse> reportAll() throws VeloriaException {
+        return customerOrderItemRepository.findSalesView(null, null, null, null, Pageable.unpaged())
+                .map(this::rowToResponse)
+                .toList();
     }
 
     private SalesOrderResponse rowToResponse(Object[] row) {

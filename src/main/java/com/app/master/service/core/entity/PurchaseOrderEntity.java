@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Getter
@@ -32,6 +34,20 @@ public class PurchaseOrderEntity extends Base {
     private String notes;
 
     private String invoiceUrl;
+
+    private String vendorGstin;
+    private String vendorStateCode;
+    private String vendorInvoiceNumber;
+    private LocalDate vendorInvoiceDate;
+    private Long taxableAmount;
+    private Long cgstAmount;
+    private Long sgstAmount;
+    private Long igstAmount;
+    private Long totalGst;
+    private BigDecimal gstRate;
+    private String financialYear;
+    private String taxPeriod;
+    private String gstExtractionStatus;
 
     @Builder.Default
     private Boolean active = Boolean.TRUE;

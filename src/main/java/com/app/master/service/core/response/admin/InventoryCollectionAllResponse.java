@@ -14,6 +14,8 @@ public class InventoryCollectionAllResponse {
     private String description;
     private Boolean active;
     private String parentName;
+    private Long soldQty;
+    private Long inInventory;
 
     public InventoryCollectionAllResponse(UUID uuid, String name, String description, Boolean active) {
         this.uuid = uuid;

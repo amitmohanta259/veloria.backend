@@ -27,7 +27,8 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
                    ip.price,
                    ip.price_currency,
                    ip.dimensions,
-                   ic.name AS category_name
+                   ic.name          AS category_name,
+                   ip.selling_price
             FROM inventory_product ip
             JOIN inventory_sub_category isc  ON isc.id  = ip.sub_category_id AND isc.archive  = false
             JOIN inventory_collection   icol ON icol.id = isc.collection_id  AND icol.archive = false
@@ -124,7 +125,7 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
                 ip.uuid                                              AS product_uuid,
                 COUNT(CASE
                     WHEN coi.id IS NOT NULL
-                         AND co.status IN ('ORDER_PLACED', 'IN_TRANSIT', 'DISPATCHED', 'DONE', 'DELIVERED')
+                         AND co.status IN ('ORDER_PLACED','PACKED','IN_TRANSIT','DISPATCHED','DONE','DELIVERED')
                          AND coi.reason_for_return IS NULL
                     THEN 1 END)                                      AS in_sold,
                 COUNT(CASE
@@ -140,7 +141,7 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
                     COALESCE(ip.initial_stock, 0)
                     - COUNT(CASE
                         WHEN coi.id IS NOT NULL
-                             AND co.status IN ('ORDER_PLACED', 'IN_TRANSIT', 'DISPATCHED', 'DONE', 'DELIVERED')
+                             AND co.status IN ('ORDER_PLACED','PACKED','IN_TRANSIT','DISPATCHED','DONE','DELIVERED')
                              AND coi.reason_for_return IS NULL
                         THEN 1 END)
                     + COUNT(CASE
@@ -206,15 +207,48 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
     List<Object[]> findCategoriesWithLatestImage();
 
     @Query(nativeQuery = true, value = """
+            WITH current_stocks AS (
+                SELECT
+                    ip.id,
+                    ip.price,
+                    ip.price_currency,
+                    GREATEST(0,
+                        COALESCE(ip.initial_stock, 0)
+                        - COUNT(CASE WHEN co.status IN ('ORDER_PLACED','PACKED','IN_TRANSIT','DISPATCHED','DELIVERED')
+                                      AND coi.reason_for_return IS NULL THEN 1 END)
+                        + COUNT(CASE WHEN co.status = 'RETURNED' OR coi.reason_for_return IS NOT NULL THEN 1 END)
+                    ) AS current_stock
+                FROM inventory_product ip
+                LEFT JOIN customer_order_item coi ON coi.product_uuid = ip.uuid AND coi.archive = false
+                LEFT JOIN customer_order co ON co.id = coi.customer_order_id AND co.archive = false
+                WHERE ip.archive = false
+                GROUP BY ip.id, ip.price, ip.price_currency, ip.initial_stock
+            )
             SELECT
-                COALESCE(SUM(price * initial_stock), 0)                                      AS total_stock_value,
-                COALESCE(MAX(price_currency), 'INR')                                         AS currency,
-                COUNT(CASE WHEN initial_stock > 0 AND initial_stock <= 20 THEN 1 END)        AS low_stock_count,
-                COUNT(CASE WHEN initial_stock = 0 THEN 1 END)                                AS out_of_stock_count
-            FROM inventory_product
-            WHERE archive = false
+                COALESCE(SUM(price * current_stock), 0)                                     AS total_stock_value,
+                COALESCE(MAX(price_currency), 'INR')                                        AS currency,
+                COUNT(CASE WHEN current_stock > 0 AND current_stock <= 20 THEN 1 END)       AS low_stock_count,
+                COUNT(CASE WHEN current_stock = 0 THEN 1 END)                               AS out_of_stock_count
+            FROM current_stocks
             """)
     List<Object[]> findInventoryStats();
+
+    @Query(nativeQuery = true, value = """
+            SELECT
+                ip.uuid,
+                GREATEST(0,
+                    COALESCE(ip.initial_stock, 0)
+                    - COUNT(CASE WHEN co.status IN ('ORDER_PLACED','PACKED','IN_TRANSIT','DISPATCHED','DELIVERED')
+                                  AND coi.reason_for_return IS NULL THEN 1 END)
+                    + COUNT(CASE WHEN co.status = 'RETURNED' OR coi.reason_for_return IS NOT NULL THEN 1 END)
+                ) AS current_stock
+            FROM inventory_product ip
+            LEFT JOIN customer_order_item coi ON coi.product_uuid = ip.uuid AND coi.archive = false
+            LEFT JOIN customer_order co ON co.id = coi.customer_order_id AND co.archive = false
+            WHERE ip.uuid IN :uuids AND ip.archive = false
+            GROUP BY ip.uuid, ip.initial_stock
+            """)
+    List<Object[]> findCurrentStockByUuids(@Param("uuids") List<UUID> uuids);
 
     @Query(nativeQuery = true, value = """
             SELECT ic.name                                                             AS category,
@@ -237,10 +271,10 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
     @Query(nativeQuery = true, value = """
             SELECT ip.name,
                    ip.price_currency,
-                   COUNT(coi.id)           AS sales_count,
-                   COUNT(coi.id) * ip.price AS total_revenue,
+                   COUNT(coi.id)                                                      AS sales_count,
+                   COUNT(coi.id) * COALESCE(ip.selling_price, ip.price)               AS total_revenue,
                    (SELECT ipi2.image FROM inventory_product_images ipi2
-                    WHERE ipi2.product_id = ip.id ORDER BY ipi2.id LIMIT 1) AS image_url
+                    WHERE ipi2.product_id = ip.id ORDER BY ipi2.id LIMIT 1)           AS image_url
             FROM inventory_product ip
             LEFT JOIN customer_order_item coi ON coi.product_uuid = ip.uuid AND coi.archive = false
             LEFT JOIN customer_order      co  ON co.id = coi.customer_order_id AND co.archive = false
@@ -248,7 +282,7 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
                  AND EXTRACT(MONTH FROM co.order_placed_at) = EXTRACT(MONTH FROM NOW())
                  AND EXTRACT(YEAR  FROM co.order_placed_at) = EXTRACT(YEAR  FROM NOW())
             WHERE ip.archive = false
-            GROUP BY ip.id, ip.name, ip.price_currency, ip.price
+            GROUP BY ip.id, ip.name, ip.price_currency, ip.selling_price, ip.price
             ORDER BY sales_count DESC
             LIMIT 3
             """)
@@ -257,17 +291,17 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
     @Query(nativeQuery = true, value = """
             SELECT ip.name,
                    ip.price_currency,
-                   COUNT(coi.id)           AS sales_count,
-                   COUNT(coi.id) * ip.price AS total_revenue,
+                   COUNT(coi.id)                                                      AS sales_count,
+                   COUNT(coi.id) * COALESCE(ip.selling_price, ip.price)               AS total_revenue,
                    (SELECT ipi2.image FROM inventory_product_images ipi2
-                    WHERE ipi2.product_id = ip.id ORDER BY ipi2.id LIMIT 1) AS image_url
+                    WHERE ipi2.product_id = ip.id ORDER BY ipi2.id LIMIT 1)           AS image_url
             FROM inventory_product ip
             LEFT JOIN customer_order_item coi ON coi.product_uuid = ip.uuid AND coi.archive = false
             LEFT JOIN customer_order      co  ON co.id = coi.customer_order_id AND co.archive = false
                  AND co.status NOT IN ('RETURNED','CANCELLED') AND coi.reason_for_return IS NULL
                  AND co.order_placed_at >= DATE_TRUNC('quarter', NOW())
             WHERE ip.archive = false
-            GROUP BY ip.id, ip.name, ip.price_currency, ip.price
+            GROUP BY ip.id, ip.name, ip.price_currency, ip.selling_price, ip.price
             ORDER BY sales_count DESC
             LIMIT 3
             """)
@@ -276,17 +310,17 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
     @Query(nativeQuery = true, value = """
             SELECT ip.name,
                    ip.price_currency,
-                   COUNT(coi.id)           AS sales_count,
-                   COUNT(coi.id) * ip.price AS total_revenue,
+                   COUNT(coi.id)                                                      AS sales_count,
+                   COUNT(coi.id) * COALESCE(ip.selling_price, ip.price)               AS total_revenue,
                    (SELECT ipi2.image FROM inventory_product_images ipi2
-                    WHERE ipi2.product_id = ip.id ORDER BY ipi2.id LIMIT 1) AS image_url
+                    WHERE ipi2.product_id = ip.id ORDER BY ipi2.id LIMIT 1)           AS image_url
             FROM inventory_product ip
             LEFT JOIN customer_order_item coi ON coi.product_uuid = ip.uuid AND coi.archive = false
             LEFT JOIN customer_order      co  ON co.id = coi.customer_order_id AND co.archive = false
                  AND co.status NOT IN ('RETURNED','CANCELLED') AND coi.reason_for_return IS NULL
                  AND EXTRACT(YEAR FROM co.order_placed_at) = EXTRACT(YEAR FROM NOW())
             WHERE ip.archive = false
-            GROUP BY ip.id, ip.name, ip.price_currency, ip.price
+            GROUP BY ip.id, ip.name, ip.price_currency, ip.selling_price, ip.price
             ORDER BY sales_count DESC
             LIMIT 3
             """)

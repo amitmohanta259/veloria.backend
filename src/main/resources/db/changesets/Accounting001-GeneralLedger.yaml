@@ -1,0 +1,182 @@
+databaseChangeLog:
+
+  # ── Chart of accounts ────────────────────────────────────────────────────
+  # Every posting names an account here. Without a chart there is nothing for a
+  # trial balance to group by, and each report ends up inventing its own
+  # classification — which is exactly how the reports drifted apart.
+  - changeSet:
+      id: acc-001-chart-of-accounts
+      author: veloria
+      changes:
+        - createTable:
+            tableName: chart_of_accounts
+            columns:
+              - column: { name: id, type: bigserial, autoIncrement: true,
+                          constraints: { primaryKey: true, nullable: false } }
+              - column: { name: code, type: varchar(10), constraints: { nullable: false } }
+              - column: { name: name, type: varchar(120), constraints: { nullable: false } }
+              # ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+              - column: { name: account_type, type: varchar(20), constraints: { nullable: false } }
+              # DEBIT or CREDIT — which side increases this account
+              - column: { name: normal_balance, type: varchar(6), constraints: { nullable: false } }
+              - column: { name: subgroup, type: varchar(60) }
+              - column: { name: is_current, type: boolean, defaultValueBoolean: true }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: active, type: boolean, defaultValueBoolean: true }
+        - addUniqueConstraint:
+            tableName: chart_of_accounts
+            columnNames: code
+            constraintName: uq_coa_code
+
+  # ── Journal entries ──────────────────────────────────────────────────────
+  - changeSet:
+      id: acc-002-journal-entry
+      author: veloria
+      changes:
+        - createTable:
+            tableName: journal_entry
+            columns:
+              - column: { name: id, type: bigserial, autoIncrement: true,
+                          constraints: { primaryKey: true, nullable: false } }
+              - column: { name: journal_number, type: varchar(40), constraints: { nullable: false } }
+              - column: { name: journal_date, type: date, constraints: { nullable: false } }
+              - column: { name: period, type: varchar(7), constraints: { nullable: false } }
+              - column: { name: financial_year, type: varchar(10) }
+              - column: { name: reference, type: varchar(80) }
+              # Which business record produced this entry, so a figure is traceable
+              - column: { name: source_type, type: varchar(40), constraints: { nullable: false } }
+              - column: { name: source_id, type: bigint }
+              - column: { name: description, type: text }
+              # POSTED or REVERSED. Nothing is ever deleted.
+              - column: { name: status, type: varchar(16), defaultValue: 'POSTED' }
+              - column: { name: reverses_journal_id, type: bigint }
+              - column: { name: total_debit_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_credit_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: created_by, type: varchar(255) }
+              - column: { name: created_at, type: timestamptz, defaultValueComputed: now() }
+        - addUniqueConstraint:
+            tableName: journal_entry
+            columnNames: journal_number
+            constraintName: uq_journal_number
+        - createIndex:
+            tableName: journal_entry
+            indexName: ix_journal_period
+            columns:
+              - column: { name: period }
+              - column: { name: status }
+
+  # One business record produces one journal. Re-running a backfill or posting
+  # the same sale twice would otherwise double every figure downstream.
+  - changeSet:
+      id: acc-003-journal-idempotency
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_journal_source
+              ON journal_entry (source_type, source_id)
+              WHERE source_id IS NOT NULL AND status = 'POSTED'
+      rollback:
+        - sql:
+            sql: DROP INDEX IF EXISTS ux_journal_source
+
+  - changeSet:
+      id: acc-004-journal-entry-line
+      author: veloria
+      changes:
+        - createTable:
+            tableName: journal_entry_line
+            columns:
+              - column: { name: id, type: bigserial, autoIncrement: true,
+                          constraints: { primaryKey: true, nullable: false } }
+              - column: { name: journal_entry_id, type: bigint, constraints: { nullable: false } }
+              - column: { name: line_number, type: int }
+              - column: { name: account_code, type: varchar(10), constraints: { nullable: false } }
+              - column: { name: debit_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: credit_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: description, type: text }
+        - addForeignKeyConstraint:
+            baseTableName: journal_entry_line
+            baseColumnNames: journal_entry_id
+            referencedTableName: journal_entry
+            referencedColumnNames: id
+            constraintName: fk_jel_journal
+            onDelete: CASCADE
+        - createIndex:
+            tableName: journal_entry_line
+            indexName: ix_jel_account
+            columns:
+              - column: { name: account_code }
+
+  # A line is one side or the other, never both and never neither. This is the
+  # cheapest place to stop a malformed posting.
+  - changeSet:
+      id: acc-005-line-single-sided
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              ALTER TABLE journal_entry_line
+                ADD CONSTRAINT ck_jel_single_sided
+                CHECK ( (COALESCE(debit_paise,0) = 0) <> (COALESCE(credit_paise,0) = 0) )
+      rollback:
+        - sql:
+            sql: ALTER TABLE journal_entry_line DROP CONSTRAINT IF EXISTS ck_jel_single_sided
+
+  # ── Accounting period lock ───────────────────────────────────────────────
+  - changeSet:
+      id: acc-006-accounting-period
+      author: veloria
+      changes:
+        - createTable:
+            tableName: accounting_period
+            columns:
+              - column: { name: id, type: bigserial, autoIncrement: true,
+                          constraints: { primaryKey: true, nullable: false } }
+              - column: { name: period, type: varchar(7), constraints: { nullable: false } }
+              - column: { name: period_start, type: date, constraints: { nullable: false } }
+              - column: { name: period_end, type: date, constraints: { nullable: false } }
+              - column: { name: financial_year, type: varchar(10) }
+              # OPEN, CLOSED, LOCKED
+              - column: { name: status, type: varchar(16), defaultValue: 'OPEN' }
+              - column: { name: closed_by, type: varchar(255) }
+              - column: { name: closed_at, type: timestamptz }
+              - column: { name: organization_id, type: bigint }
+        - addUniqueConstraint:
+            tableName: accounting_period
+            columnNames: period
+            constraintName: uq_accounting_period
+
+  # A closed period cannot receive new postings. Enforced by the database so it
+  # holds against a direct write, not only against code that remembers to ask.
+  - changeSet:
+      id: acc-007-period-lock-trigger
+      author: veloria
+      changes:
+        - sql:
+            splitStatements: false
+            sql: |
+              CREATE OR REPLACE FUNCTION acc_reject_closed_period() RETURNS trigger AS $$
+              DECLARE p_status text;
+              BEGIN
+                SELECT status INTO p_status FROM accounting_period
+                 WHERE period = NEW.period LIMIT 1;
+                IF p_status IN ('CLOSED', 'LOCKED') THEN
+                  RAISE EXCEPTION 'Accounting period % is % — post a reversal or an adjustment in an open period instead',
+                    NEW.period, p_status USING ERRCODE = 'check_violation';
+                END IF;
+                RETURN NEW;
+              END;
+              $$ LANGUAGE plpgsql;
+        - sql:
+            splitStatements: false
+            sql: |
+              CREATE TRIGGER trg_journal_period_lock
+              BEFORE INSERT OR UPDATE ON journal_entry
+              FOR EACH ROW EXECUTE FUNCTION acc_reject_closed_period();
+      rollback:
+        - sql:
+            sql: DROP TRIGGER IF EXISTS trg_journal_period_lock ON journal_entry
+        - sql:
+            sql: DROP FUNCTION IF EXISTS acc_reject_closed_period()

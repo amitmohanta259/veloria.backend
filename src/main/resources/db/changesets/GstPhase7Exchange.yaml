@@ -1,0 +1,221 @@
+databaseChangeLog:
+
+  # ── Exchange / replacement (spec phases 14 and 15) ───────────────────────
+  # An exchange is not an edit of the original order. It is a return of one
+  # item and a fresh supply of another, each with its own accounting event.
+  - changeSet:
+      id: gst-phase7-001-exchange-request
+      author: veloria
+      changes:
+        - createTable:
+            tableName: order_exchange_request
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: exchange_number, type: varchar(40), constraints: { nullable: false, unique: true } }
+              - column: { name: exchange_type, type: varchar(20), defaultValue: EXCHANGE }
+              - column: { name: original_order_id, type: bigint }
+              - column: { name: original_order_code, type: varchar(60) }
+              - column: { name: original_invoice_id, type: bigint }
+              - column: { name: customer_id, type: varchar(60) }
+              - column: { name: customer_name, type: varchar(255) }
+              # Returned side
+              - column: { name: return_request_id, type: bigint }
+              - column: { name: credit_note_id, type: bigint }
+              - column: { name: returned_taxable_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: returned_tax_paise, type: bigint, defaultValueNumeric: 0 }
+              # Replacement side
+              - column: { name: replacement_order_id, type: bigint }
+              - column: { name: replacement_invoice_id, type: bigint }
+              - column: { name: replacement_taxable_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: replacement_tax_paise, type: bigint, defaultValueNumeric: 0 }
+              # Difference
+              - column: { name: taxable_difference_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: tax_difference_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: payment_difference_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: settlement_direction, type: varchar(20) }
+              - column: { name: status, type: varchar(30), defaultValue: INITIATED }
+              - column: { name: reason, type: text }
+              - column: { name: tax_period, type: varchar(7) }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+              - column: { name: created_by, type: varchar(100) }
+              - column: { name: completed_at, type: timestamp }
+        - createIndex:
+            tableName: order_exchange_request
+            indexName: idx_exchange_order
+            columns: [{ column: { name: original_order_id } }]
+        - createIndex:
+            tableName: order_exchange_request
+            indexName: idx_exchange_period
+            columns: [{ column: { name: organization_id } }, { column: { name: tax_period } }]
+
+  - changeSet:
+      id: gst-phase7-002-exchange-item
+      author: veloria
+      changes:
+        - createTable:
+            tableName: order_exchange_item
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: exchange_request_id, type: bigint, constraints: { nullable: false } }
+              - column: { name: side, type: varchar(15), constraints: { nullable: false } }
+              - column: { name: order_item_id, type: bigint }
+              - column: { name: product_uuid, type: uuid }
+              - column: { name: product_name, type: varchar(255) }
+              - column: { name: hsn_code, type: varchar(20) }
+              - column: { name: quantity, type: int, constraints: { nullable: false } }
+              - column: { name: unit_price_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: taxable_value_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cgst_amount_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: sgst_amount_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: igst_amount_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: cess_amount_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: total_tax_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+        - addForeignKeyConstraint:
+            baseTableName: order_exchange_item
+            baseColumnNames: exchange_request_id
+            constraintName: fk_exchange_item_request
+            referencedTableName: order_exchange_request
+            referencedColumnNames: id
+        - sql:
+            sql: >
+              ALTER TABLE order_exchange_item
+                ADD CONSTRAINT ck_exchange_item_quantity CHECK (quantity > 0)
+        - sql:
+            sql: >
+              ALTER TABLE order_exchange_item
+                ADD CONSTRAINT ck_exchange_item_side CHECK (side IN ('RETURNED', 'REPLACEMENT'))
+
+  # ── Compliance document applicability (spec phases 23, 24) ───────────────
+  # Applicability is decided and recorded here. Government-issued values (IRN,
+  # acknowledgement number, e-way bill number) stay NULL until a real
+  # integration returns them — nothing is ever generated locally.
+  - changeSet:
+      id: gst-phase7-003-einvoice-document
+      author: veloria
+      changes:
+        - createTable:
+            tableName: einvoice_document
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: sales_invoice_id, type: bigint }
+              - column: { name: document_number, type: varchar(60) }
+              - column: { name: document_date, type: date }
+              - column: { name: applicability, type: varchar(20), constraints: { nullable: false } }
+              - column: { name: applicability_reason, type: text }
+              - column: { name: submission_status, type: varchar(20), defaultValue: NOT_SUBMITTED }
+              - column: { name: request_reference, type: varchar(100) }
+              # Government-issued. Populated only by a real IRP integration.
+              - column: { name: irn, type: varchar(80) }
+              - column: { name: acknowledgement_number, type: varchar(80) }
+              - column: { name: acknowledgement_date, type: timestamp }
+              - column: { name: signed_qr_payload, type: text }
+              - column: { name: provider, type: varchar(60) }
+              - column: { name: last_error, type: text }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+              - column: { name: created_by, type: varchar(100) }
+        - createIndex:
+            tableName: einvoice_document
+            indexName: idx_einvoice_invoice
+            columns: [{ column: { name: sales_invoice_id } }]
+        # An IRN can only exist alongside an acknowledgement from the portal.
+        - sql:
+            sql: >
+              ALTER TABLE einvoice_document
+                ADD CONSTRAINT ck_einvoice_irn_needs_ack
+                CHECK (irn IS NULL OR acknowledgement_number IS NOT NULL)
+
+  - changeSet:
+      id: gst-phase7-004-ewaybill-document
+      author: veloria
+      changes:
+        - createTable:
+            tableName: ewaybill_document
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: sales_invoice_id, type: bigint }
+              - column: { name: document_number, type: varchar(60) }
+              - column: { name: document_date, type: date }
+              - column: { name: applicability, type: varchar(20), constraints: { nullable: false } }
+              - column: { name: applicability_reason, type: text }
+              - column: { name: consignment_value_paise, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: origin_state_code, type: varchar(2) }
+              - column: { name: destination_state_code, type: varchar(2) }
+              - column: { name: transporter_name, type: varchar(255) }
+              - column: { name: transporter_id, type: varchar(40) }
+              - column: { name: vehicle_number, type: varchar(30) }
+              - column: { name: submission_status, type: varchar(20), defaultValue: NOT_SUBMITTED }
+              # Government-issued. Populated only by a real portal integration.
+              - column: { name: ewb_number, type: varchar(40) }
+              - column: { name: ewb_date, type: timestamp }
+              - column: { name: valid_until, type: timestamp }
+              - column: { name: provider, type: varchar(60) }
+              - column: { name: last_error, type: text }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+              - column: { name: created_by, type: varchar(100) }
+        - createIndex:
+            tableName: ewaybill_document
+            indexName: idx_ewaybill_invoice
+            columns: [{ column: { name: sales_invoice_id } }]
+
+  # ── GSTIN verification (spec phase 25) ───────────────────────────────────
+  # Format validation and portal verification are recorded as distinct states.
+  # Passing a regex is never reported as VERIFIED.
+  - changeSet:
+      id: gst-phase7-005-gstin-verification
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gstin_verification
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: gstin, type: varchar(15), constraints: { nullable: false } }
+              - column: { name: status, type: varchar(30), constraints: { nullable: false } }
+              - column: { name: legal_name, type: varchar(255) }
+              - column: { name: trade_name, type: varchar(255) }
+              - column: { name: state_code, type: varchar(2) }
+              - column: { name: registration_status, type: varchar(40) }
+              - column: { name: provider, type: varchar(60) }
+              - column: { name: provider_reference, type: varchar(100) }
+              - column: { name: last_error, type: text }
+              - column: { name: verified_at, type: timestamp }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: created_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+        - addUniqueConstraint:
+            tableName: gstin_verification
+            columnNames: organization_id, gstin
+            constraintName: uq_gstin_verification
+        # Only a real provider can produce VERIFIED, and it must say which one.
+        - sql:
+            sql: >
+              ALTER TABLE gstin_verification
+                ADD CONSTRAINT ck_gstin_verified_needs_provider
+                CHECK (status <> 'VERIFIED' OR (provider IS NOT NULL AND verified_at IS NOT NULL))
+
+  # ── Report export audit (spec phase 19) ──────────────────────────────────
+  - changeSet:
+      id: gst-phase7-006-report-export-log
+      author: veloria
+      changes:
+        - createTable:
+            tableName: gst_report_export
+            columns:
+              - column: { name: id, type: bigserial, constraints: { primaryKey: true } }
+              - column: { name: report_type, type: varchar(60), constraints: { nullable: false } }
+              - column: { name: format, type: varchar(10), constraints: { nullable: false } }
+              - column: { name: tax_period, type: varchar(7) }
+              - column: { name: row_count, type: int, defaultValueNumeric: 0 }
+              - column: { name: byte_size, type: bigint, defaultValueNumeric: 0 }
+              - column: { name: organization_id, type: bigint }
+              - column: { name: gst_registration_id, type: bigint }
+              - column: { name: exported_by, type: varchar(100) }
+              - column: { name: exported_at, type: timestamp, defaultValueComputed: CURRENT_TIMESTAMP }
+        - createIndex:
+            tableName: gst_report_export
+            indexName: idx_report_export_org
+            columns: [{ column: { name: organization_id } }, { column: { name: exported_at } }]

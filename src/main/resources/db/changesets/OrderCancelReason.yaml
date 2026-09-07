@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: add_cancel_reason_to_customer_order
+      author: admin
+      changes:
+        - addColumn:
+            tableName: customer_order
+            columns:
+              - column:
+                  name: cancel_reason
+                  type: text

@@ -5,6 +5,7 @@ import com.app.master.service.core.enums.InventoryGender;
 import com.app.master.service.core.enums.InventoryVisibility;
 import lombok.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -27,4 +28,8 @@ public class InventoryProduct {
     private InventoryGender gender;
     private String dimensions;
     private UUID supplierUuid;
+    private String colour;
+    private String wearType;
+    private String hsnCode;
+    private List<SizeStock> sizeStocks;
 }

@@ -80,6 +80,14 @@ public class InventoryProductController extends AppController {
         return data(ResponseCode.FETCHED, "Inventory stats fetched successfully", service.getInventoryStats());
     }
 
+    @PatchMapping("/{uuid}/stock/add")
+    public ResponseEntity<Response> addStock(@PathVariable UUID uuid,
+                                             @RequestParam String size,
+                                             @RequestParam long qty) throws VeloriaException {
+        service.addStock(uuid, size, qty);
+        return success(ResponseCode.UPDATED, "Stock updated successfully");
+    }
+
     @GetMapping("/top-sellers")
     public ResponseEntity<Response> topSellers(
             @RequestParam(defaultValue = "monthly") String period) throws VeloriaException {

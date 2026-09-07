@@ -1,0 +1,59 @@
+databaseChangeLog:
+  - changeSet:
+      id: create_business_details_table
+      author: admin
+      changes:
+        - createTable:
+            tableName: business_details
+            columns:
+              - column:
+                  name: id
+                  type: bigint
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: uuid
+                  type: uuid
+                  constraints:
+                    unique: true
+                    nullable: false
+              - column:
+                  name: gst_number
+                  type: varchar(50)
+              - column:
+                  name: company_name
+                  type: varchar(255)
+              - column:
+                  name: company_address
+                  type: text
+              - column:
+                  name: owner_name
+                  type: varchar(255)
+              - column:
+                  name: registered_phone
+                  type: varchar(20)
+              - column:
+                  name: registered_email
+                  type: varchar(255)
+              - column:
+                  name: active
+                  type: boolean
+                  defaultValueBoolean: true
+              - column:
+                  name: archive
+                  type: boolean
+                  defaultValueBoolean: false
+              - column:
+                  name: created
+                  type: timestamp
+              - column:
+                  name: modified
+                  type: timestamp
+              - column:
+                  name: created_by
+                  type: varchar(255)
+              - column:
+                  name: modified_by
+                  type: varchar(255)

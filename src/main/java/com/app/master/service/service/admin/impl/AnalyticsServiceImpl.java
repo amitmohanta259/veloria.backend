@@ -2,7 +2,7 @@ package com.app.master.service.service.admin.impl;
 
 import com.app.master.service.core.response.admin.AnalyticsSummaryResponse;
 import com.app.master.service.core.response.admin.AnalyticsSummaryResponse.*;
-import com.app.master.service.repository.admin.SalesOrderRepository;
+import com.app.master.service.repository.admin.CustomerOrderRepository;
 import com.app.master.service.service.admin.AnalyticsService;
 import org.springframework.stereotype.Service;
 
@@ -16,9 +16,9 @@ import java.util.Locale;
 @Service
 public class AnalyticsServiceImpl implements AnalyticsService {
 
-    private final SalesOrderRepository salesOrderRepository;
+    private final CustomerOrderRepository salesOrderRepository;
 
-    public AnalyticsServiceImpl(SalesOrderRepository salesOrderRepository) {
+    public AnalyticsServiceImpl(CustomerOrderRepository salesOrderRepository) {
         this.salesOrderRepository = salesOrderRepository;
     }
 

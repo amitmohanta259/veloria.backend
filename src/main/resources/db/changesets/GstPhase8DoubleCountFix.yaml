@@ -1,0 +1,22 @@
+databaseChangeLog:
+
+  # ── Double-counted output tax ────────────────────────────────────────────
+  # Introducing the sales invoice layer left both the order-level movement and
+  # the invoice-level movement posted for the same supply, inflating output GST.
+  # The invoice is the GST document, so the order-level rows are superseded.
+  # They are retained, never deleted, so the history stays auditable.
+  - changeSet:
+      id: gst-phase8-001-supersede-invoiced-order-movements
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              UPDATE gst_movement_ledger m
+                 SET status = 'SUPERSEDED',
+                     reason = 'Superseded by invoice ' || si.invoice_number
+                FROM sales_invoice si
+               WHERE m.source_type = 'CUSTOMER_ORDER_ITEM'
+                 AND m.status = 'POSTED'
+                 AND si.invoice_number IS NOT NULL
+                 AND si.status <> 'DRAFT'
+                 AND m.source_document_number = si.order_code

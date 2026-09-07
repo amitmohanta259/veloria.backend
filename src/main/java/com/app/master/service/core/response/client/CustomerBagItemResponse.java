@@ -19,4 +19,5 @@ public class CustomerBagItemResponse {
     private Integer quantity;
     private Instant addedAt;
     private String stockStatus;
+    private String size;
 }
