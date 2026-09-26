@@ -25,8 +25,23 @@ public class JournalEntryEntity {
     @Column(name = "journal_number", nullable = false, unique = true)
     private String journalNumber;
 
+    /**
+     * The <b>posting date</b>: the date whose period this entry is recorded in.
+     * Equal to {@link #transactionDate} unless that period was closed, in which
+     * case the approved policy moves the entry to the next open period.
+     */
     @Column(name = "journal_date", nullable = false)
     private LocalDate journalDate;
+
+    /**
+     * When the business event actually happened — the order was placed, the cash
+     * was taken, the refund was issued.
+     *
+     * <p>Kept separate from {@link #journalDate} so that a deferred posting can
+     * still be audited against the day it belongs to. It is never overwritten.
+     */
+    @Column(name = "transaction_date")
+    private LocalDate transactionDate;
 
     @Column(nullable = false)
     private String period;

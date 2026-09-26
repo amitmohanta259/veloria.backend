@@ -1,0 +1,193 @@
+databaseChangeLog:
+  # The payment domain.
+  #
+  # Additive only. Nothing existing is dropped, renamed or rewritten: the seven
+  # historical orders, their journals and the receivable balance are untouched,
+  # and every new column on customer_order is nullable or defaulted so those rows
+  # remain valid exactly as they are.
+  #
+  # An order has many payment attempts. That is not speculative generality — a
+  # partially paid order collects 50% up front and the balance later, which is
+  # two attempts against one order, and a failed attempt must remain on the
+  # record rather than being overwritten by the next one.
+
+  - changeSet:
+      id: create_payment_attempt
+      author: veloria
+      changes:
+        - createTable:
+            tableName: payment_attempt
+            columns:
+              - column: {name: id, type: BIGSERIAL, autoIncrement: true, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: uuid, type: UUID, constraints: {nullable: false, unique: true}}
+              - column: {name: customer_order_id, type: BIGINT, constraints: {nullable: false}}
+              - column: {name: order_code, type: VARCHAR(64), constraints: {nullable: false}}
+              # Who the attempt belongs to. Checked before a payment may be
+              # created or verified, so one customer cannot pay for another's order.
+              - column: {name: customer_id, type: VARCHAR(64), constraints: {nullable: false}}
+              # PAYMENT idempotency. Deliberately a different column, on a
+              # different table, from customer_order.client_order_reference,
+              # which is ORDER idempotency (P0-3) and is not touched here.
+              - column: {name: idempotency_key, type: VARCHAR(80), constraints: {nullable: false}}
+              # 1 = the first collection, 2 = the balance of a partial payment.
+              - column: {name: sequence_no, type: INT, defaultValueNumeric: 1, constraints: {nullable: false}}
+              - column: {name: gateway, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: status, type: VARCHAR(24), constraints: {nullable: false}}
+              # Integer paise, computed by the server from the order's own
+              # financial snapshot. Never supplied by the browser.
+              - column: {name: amount_paise, type: BIGINT, constraints: {nullable: false}}
+              - column: {name: currency, type: VARCHAR(3), defaultValue: 'INR', constraints: {nullable: false}}
+              # The allocation this payment carried, frozen at the moment it was
+              # taken. Refunds and outstanding balances read these rather than
+              # recomputing from today's product and tax values.
+              - column: {name: product_allocated_paise, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: gst_allocated_paise, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: transport_allocated_paise, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: other_allocated_paise, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: razorpay_order_id, type: VARCHAR(64)}
+              - column: {name: razorpay_payment_id, type: VARCHAR(64)}
+              # What the gateway says was used. Never an instrument, never a PAN.
+              - column: {name: payment_method, type: VARCHAR(24)}
+              # NULL means "not known yet". The fee is read from settlement data;
+              # it is never assumed from a rate.
+              - column: {name: gateway_fee_paise, type: BIGINT}
+              - column: {name: failure_code, type: VARCHAR(64)}
+              - column: {name: failure_description, type: VARCHAR(512)}
+              - column: {name: failure_source, type: VARCHAR(64)}
+              - column: {name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP WITH TIME ZONE}
+              - column: {name: captured_at, type: TIMESTAMP WITH TIME ZONE}
+              - column: {name: failed_at, type: TIMESTAMP WITH TIME ZONE}
+
+  - changeSet:
+      id: create_payment_attempt_indexes
+      author: veloria
+      changes:
+        # The database, not application code, is what makes a payment attempt
+        # unique. Two simultaneous "Pay now" clicks both pass any find-then-insert
+        # check; only one can win this index.
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_payment_attempt_idempotency
+              ON payment_attempt (idempotency_key)
+            rollback: DROP INDEX IF EXISTS ux_payment_attempt_idempotency
+        # Partial, because an attempt has no gateway identifier until Razorpay
+        # issues one, and COD attempts never have one at all.
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_payment_attempt_rzp_order
+              ON payment_attempt (razorpay_order_id) WHERE razorpay_order_id IS NOT NULL
+            rollback: DROP INDEX IF EXISTS ux_payment_attempt_rzp_order
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_payment_attempt_rzp_payment
+              ON payment_attempt (razorpay_payment_id) WHERE razorpay_payment_id IS NOT NULL
+            rollback: DROP INDEX IF EXISTS ux_payment_attempt_rzp_payment
+        # One live attempt per order at a time: a second "Pay now" while one is
+        # still open cannot create a parallel payable transaction.
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_payment_attempt_open_per_order
+              ON payment_attempt (customer_order_id)
+              WHERE status IN ('INITIATED', 'PENDING', 'AUTHORIZED')
+            rollback: DROP INDEX IF EXISTS ux_payment_attempt_open_per_order
+        - createIndex:
+            tableName: payment_attempt
+            indexName: ix_payment_attempt_order
+            columns:
+              - column: {name: customer_order_id}
+              - column: {name: sequence_no}
+
+  - changeSet:
+      id: create_payment_refund
+      author: veloria
+      changes:
+        - createTable:
+            tableName: payment_refund
+            columns:
+              - column: {name: id, type: BIGSERIAL, autoIncrement: true, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: uuid, type: UUID, constraints: {nullable: false, unique: true}}
+              - column: {name: payment_attempt_id, type: BIGINT, constraints: {nullable: false}}
+              - column: {name: customer_order_id, type: BIGINT, constraints: {nullable: false}}
+              - column: {name: order_code, type: VARCHAR(64), constraints: {nullable: false}}
+              - column: {name: idempotency_key, type: VARCHAR(80), constraints: {nullable: false}}
+              - column: {name: razorpay_refund_id, type: VARCHAR(64)}
+              - column: {name: amount_paise, type: BIGINT, constraints: {nullable: false}}
+              # What the refund gave back, by head. Transportation and gateway fee
+              # are excluded by the approved policy, so they have no column here.
+              - column: {name: product_refunded_paise, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: gst_refunded_paise, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: status, type: VARCHAR(24), constraints: {nullable: false}}
+              - column: {name: reason, type: VARCHAR(64)}
+              - column: {name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: completed_at, type: TIMESTAMP WITH TIME ZONE}
+              - column: {name: failure_code, type: VARCHAR(64)}
+              - column: {name: failure_description, type: VARCHAR(512)}
+
+  - changeSet:
+      id: create_payment_refund_indexes
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_payment_refund_idempotency
+              ON payment_refund (idempotency_key)
+            rollback: DROP INDEX IF EXISTS ux_payment_refund_idempotency
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_payment_refund_rzp
+              ON payment_refund (razorpay_refund_id) WHERE razorpay_refund_id IS NOT NULL
+            rollback: DROP INDEX IF EXISTS ux_payment_refund_rzp
+        - createIndex:
+            tableName: payment_refund
+            indexName: ix_payment_refund_attempt
+            columns:
+              - column: {name: payment_attempt_id}
+
+  - changeSet:
+      id: create_payment_webhook_event
+      author: veloria
+      changes:
+        - createTable:
+            tableName: payment_webhook_event
+            columns:
+              - column: {name: id, type: BIGSERIAL, autoIncrement: true, constraints: {primaryKey: true, nullable: false}}
+              # Razorpay's own event id, from the x-razorpay-event-id header.
+              # The unique index on it is what makes a redelivered webhook a
+              # no-op rather than a second state transition.
+              - column: {name: event_id, type: VARCHAR(128), constraints: {nullable: false}}
+              - column: {name: event_type, type: VARCHAR(64), constraints: {nullable: false}}
+              - column: {name: razorpay_order_id, type: VARCHAR(64)}
+              - column: {name: razorpay_payment_id, type: VARCHAR(64)}
+              - column: {name: status, type: VARCHAR(24), constraints: {nullable: false}}
+              - column: {name: note, type: VARCHAR(512)}
+              - column: {name: received_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: processed_at, type: TIMESTAMP WITH TIME ZONE}
+
+  - changeSet:
+      id: create_payment_webhook_event_index
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_payment_webhook_event_id
+              ON payment_webhook_event (event_id)
+            rollback: DROP INDEX IF EXISTS ux_payment_webhook_event_id
+
+  - changeSet:
+      id: add_order_payment_columns
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: customer_order
+            columns:
+              # How the customer chose to pay. NULL on the seven historical
+              # orders, which predate payment entirely.
+              - column: {name: payment_mode, type: VARCHAR(24)}
+              # The approved flat COD handling charge, in paise. Defaults to 0 so
+              # every existing order keeps the total it already has.
+              - column: {name: cod_fee_paise, type: BIGINT, defaultValueNumeric: 0}
+              # P0-5A recorded why an order was cancelled but not who did it or
+              # when. Both are now required for every cancellation.
+              - column: {name: cancelled_by, type: VARCHAR(24)}
+              - column: {name: cancelled_at, type: TIMESTAMP WITH TIME ZONE}

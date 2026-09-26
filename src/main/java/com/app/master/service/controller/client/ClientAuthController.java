@@ -8,7 +8,9 @@ import com.app.master.service.core.request.client.SendOtpRequest;
 import com.app.master.service.core.request.client.VerifyOtpRequest;
 import com.app.master.service.core.response.Response;
 import com.app.master.service.core.response.ResponseCode;
+import com.app.master.service.core.response.client.ClientAuthResponse;
 import com.app.master.service.service.client.ClientAuthService;
+import com.app.master.service.service.client.ClientSessionStore;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class ClientAuthController extends AppController {
 
     private final ClientAuthService clientAuthService;
+    private final ClientSessionStore sessionStore;
 
     @PostMapping("/register")
     public ResponseEntity<Response> register(@Valid @RequestBody ClientRegisterRequest request) throws VeloriaException {
@@ -44,4 +47,22 @@ public class ClientAuthController extends AppController {
         return success(ResponseCode.OK, "Login successful", clientAuthService.verifyOtp(request));
     }
 
+    /**
+     * Exchanges the current token for a fresh one. The old value keeps working
+     * for a short grace period, so a request already in flight is not cut off.
+     */
+    @PostMapping("/session/refresh")
+    public ResponseEntity<Response> refreshSession(@RequestHeader("Authorization") String authHeader)
+            throws VeloriaException {
+        String token = authHeader.replace("Bearer ", "").trim();
+        ClientSessionStore.Refreshed r = sessionStore.refresh(token);
+        if (r == null) throw new VeloriaException(ResponseCode.UNAUTHORIZED, "Session expired. Please sign in again.");
+        return success(ResponseCode.OK, "Session refreshed", ClientAuthResponse.builder()
+                .token(r.token())
+                .userId(r.session().userId())
+                .name(r.session().name())
+                .email(r.session().email())
+                .phone(r.session().phone())
+                .build());
+    }
 }

@@ -11,6 +11,7 @@ import com.app.master.service.core.response.ResponseCode;
 import com.app.master.service.repository.admin.CustomerOrderItemRepository;
 import com.app.master.service.repository.admin.CustomerOrderRepository;
 import com.app.master.service.repository.admin.OrderReturnRequestRepository;
+import com.app.master.service.service.client.ClientOrderIdempotencyService;
 import com.app.master.service.service.client.ClientOrderService;
 import com.app.master.service.service.client.ClientSessionStore;
 import jakarta.validation.Valid;
@@ -29,6 +30,8 @@ import java.util.Map;
 public class ClientOrderController extends AppController {
 
     private final ClientOrderService clientOrderService;
+    /** Placing an order goes through here, so a retried checkout cannot become a second order. */
+    private final ClientOrderIdempotencyService orderIdempotencyService;
     private final ClientSessionStore sessionStore;
     private final CustomerOrderRepository customerOrderRepository;
     private final CustomerOrderItemRepository customerOrderItemRepository;
@@ -39,12 +42,17 @@ public class ClientOrderController extends AppController {
             @RequestHeader("Authorization") String authHeader,
             @Valid @RequestBody PlaceOrderRequest request) throws VeloriaException {
         String token = authHeader.replace("Bearer ", "").trim();
-        return success(ResponseCode.OK, "Order placed successfully", clientOrderService.placeOrder(token, request));
+        return success(ResponseCode.OK, "Order placed successfully",
+                orderIdempotencyService.placeOrder(token, request));
     }
 
     @GetMapping("/order/{orderCode}")
-    public ResponseEntity<Response> getOrderConfirmation(@PathVariable String orderCode) throws VeloriaException {
-        return success(ResponseCode.FETCHED, "Order details fetched", clientOrderService.getOrderConfirmation(orderCode));
+    public ResponseEntity<Response> getOrderConfirmation(
+            @RequestHeader("Authorization") String authHeader,
+            @PathVariable String orderCode) throws VeloriaException {
+        String token = authHeader.replace("Bearer ", "").trim();
+        return success(ResponseCode.FETCHED, "Order details fetched",
+                clientOrderService.getOrderConfirmation(token, orderCode));
     }
 
     @GetMapping("/order/history")

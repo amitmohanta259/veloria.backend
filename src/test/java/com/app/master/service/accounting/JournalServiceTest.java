@@ -7,6 +7,7 @@ import com.app.master.service.service.admin.GstAuditService;
 import com.app.master.service.service.admin.JournalService;
 import com.app.master.service.service.admin.JournalService.Draft;
 import com.app.master.service.service.admin.JournalService.Posting;
+import com.app.master.service.service.admin.PostingDateResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -68,7 +69,8 @@ class JournalServiceTest {
             return l;
         });
 
-        service = new JournalService(journalRepo, lineRepo, accountRepo, periodRepo, audit);
+        service = new JournalService(journalRepo, lineRepo, accountRepo, periodRepo, audit,
+                new PostingDateResolver(periodRepo));
     }
 
     private Draft draft(List<Posting> postings) {

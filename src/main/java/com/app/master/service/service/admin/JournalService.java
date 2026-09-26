@@ -45,6 +45,7 @@ public class JournalService {
     private final ChartOfAccountRepository accountRepo;
     private final AccountingPeriodRepository periodRepo;
     private final GstAuditService auditService;
+    private final PostingDateResolver postingDates;
 
     /** One side of an entry, as the caller describes it. */
     public record Posting(String accountCode, long debitPaise, long creditPaise, String description) {
@@ -58,9 +59,36 @@ public class JournalService {
         }
     }
 
-    /** A journal to post, before it has been validated or numbered. */
+    /**
+     * A journal to post, before it has been validated or numbered.
+     *
+     * <p>{@code date} is the <b>transaction date</b> — when the business event
+     * happened. Where the period containing it is closed and {@code
+     * deferIntoNextOpenPeriod} is set, the entry is posted on the first day of
+     * the next open period instead and keeps this date in {@code
+     * transaction_date}; see {@link PostingDateResolver}.
+     *
+     * <p>Deferral is opt-in rather than automatic. The approved closed-period
+     * policy covers the order lifecycle — a customer's order must not be refused
+     * because the accountants have closed a month. An expense voucher or a
+     * payroll run being posted into a closed period is a different situation: it
+     * is someone backdating a document, and refusing it is still right.
+     */
     public record Draft(LocalDate date, String reference, String sourceType, Long sourceId,
-                        String description, List<Posting> postings) {}
+                        String description, List<Posting> postings,
+                        boolean deferIntoNextOpenPeriod) {
+
+        /** A draft that must land in its own period or not at all. */
+        public Draft(LocalDate date, String reference, String sourceType, Long sourceId,
+                     String description, List<Posting> postings) {
+            this(date, reference, sourceType, sourceId, description, postings, false);
+        }
+
+        /** The same draft, allowed to move to the next open period. */
+        public Draft deferrable() {
+            return new Draft(date, reference, sourceType, sourceId, description, postings, true);
+        }
+    }
 
     // ── Posting ──────────────────────────────────────────────────────────────
 
@@ -81,17 +109,25 @@ public class JournalService {
             if (existing.isPresent()) return existing.get();
         }
 
-        String period = YearMonth.from(draft.date()).toString();
+        // Two dates, deliberately. journalDate is where the entry lands in the
+        // books; transactionDate is when the thing actually happened and never
+        // moves. For all but a deferred posting they are the same day.
+        LocalDate postingDate = draft.deferIntoNextOpenPeriod()
+                ? postingDates.resolve(draft.date()).postingDate()
+                : draft.date();
+
+        String period = YearMonth.from(postingDate).toString();
         assertPeriodOpen(period);
 
         long debits = draft.postings().stream().mapToLong(Posting::debitPaise).sum();
         long credits = draft.postings().stream().mapToLong(Posting::creditPaise).sum();
 
         JournalEntryEntity entry = journalRepo.save(JournalEntryEntity.builder()
-                .journalNumber(nextJournalNumber(draft.date()))
-                .journalDate(draft.date())
+                .journalNumber(nextJournalNumber(postingDate))
+                .journalDate(postingDate)
+                .transactionDate(draft.date())
                 .period(period)
-                .financialYear(financialYear(draft.date()))
+                .financialYear(financialYear(postingDate))
                 .reference(draft.reference())
                 .sourceType(draft.sourceType())
                 .sourceId(draft.sourceId())

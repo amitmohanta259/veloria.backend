@@ -245,6 +245,20 @@ public class GstDebitNoteService {
         return dn;
     }
 
+    /**
+     * Paged debit notes for the current organisation.
+     *
+     * Mirrors {@code GstMovementService.getCreditNotes} — same filters, same
+     * blank-search handling — so the two note types list identically.
+     */
+    public org.springframework.data.domain.Page<GstDebitNoteEntity> list(
+            String period, String search, int page, int size) {
+        return debitNoteRepo.findFiltered(
+                orgId(), period,
+                search != null && search.isBlank() ? null : search,
+                org.springframework.data.domain.PageRequest.of(page, size));
+    }
+
     public List<GstDebitNoteItemEntity> itemsOf(Long id) {
         return debitNoteItemRepo.findByDebitNoteIdOrderByIdAsc(id);
     }

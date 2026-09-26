@@ -15,6 +15,8 @@ import com.app.master.service.repository.client.UserAddressRepository;
 import com.app.master.service.service.admin.GstCalculationService;
 import com.app.master.service.service.client.ClientBagService;
 import com.app.master.service.service.client.ClientSessionStore;
+import com.app.master.service.service.payment.CodFeeTaxResolver;
+import com.app.master.service.service.payment.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,6 +42,8 @@ public class ClientBagServiceImpl implements ClientBagService {
     private final BusinessDetailsRepository businessDetailsRepository;
     private final UserAddressRepository userAddressRepository;
     private final GstCalculationService gstCalculationService;
+    /** Prices the COD charge's tax, so the quote matches the invoice. */
+    private final CodFeeTaxResolver codFeeTaxResolver;
 
     private String presign(String key) {
         if (key == null) return null;
@@ -199,6 +203,19 @@ public class ClientBagServiceImpl implements ClientBagService {
         long totalGst = totalCgst + totalSgst + totalIgst;
         boolean interState = buyerStateCode != null && sellerStateCode != null
                 && !buyerStateCode.trim().equals(sellerStateCode.trim());
+        long grandTotal = subtotal + totalGst;
+
+        // The cash-on-delivery charge, priced by the same resolver the order itself
+        // uses, so the figure the customer is shown is the figure they are charged.
+        CodFeeTaxResolver.CodFeeTax codTax = codFeeTaxResolver.resolve(
+                PaymentService.COD_FEE_PAISE, buyerStateCode, sellerStateCode, today);
+
+        CartGstPreviewResponse.CodCharge codCharge = new CartGstPreviewResponse.CodCharge(
+                PaymentService.COD_FEE_PAISE,
+                codTax.totalTaxPaise(),
+                codTax.rateBp(),
+                codTax.resolution(),
+                grandTotal + PaymentService.COD_FEE_PAISE + codTax.totalTaxPaise());
 
         return new CartGstPreviewResponse(
                 interState ? "INTER_STATE" : "INTRA_STATE",
@@ -209,7 +226,8 @@ public class ClientBagServiceImpl implements ClientBagService {
                 totalSgst,
                 totalIgst,
                 totalGst,
-                subtotal + totalGst,
+                grandTotal,
+                codCharge,
                 itemGsts
         );
     }

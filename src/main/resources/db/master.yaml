@@ -88,6 +88,12 @@ databaseChangeLog:
   - include:
       file: db/changesets/ClientSession.yaml
   - include:
+      file: db/changesets/ClientSessionRefresh.yaml
+  - include:
+      file: db/changesets/OrderIdempotency.yaml
+  - include:
+      file: db/changesets/PaymentDomain.yaml
+  - include:
       file: db/changesets/BusinessDetails.yaml
   - include:
       file: db/changesets/OrderCancelReason.yaml
@@ -163,3 +169,5 @@ databaseChangeLog:
       file: db/changesets/Accounting001-GeneralLedger.yaml
   - include:
       file: db/changesets/Accounting002-Seed.yaml
+  - include:
+      file: db/changesets/FinancialDecisionsP011.yaml

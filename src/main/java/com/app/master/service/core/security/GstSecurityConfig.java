@@ -47,6 +47,30 @@ public class GstSecurityConfig {
             "/api/master/returns/**"
     };
 
+    /**
+     * Administrative paths whose <em>state-altering</em> endpoints are guarded by
+     * {@code @PreAuthorize}.
+     *
+     * These are matched only so a bearer token is decoded into an
+     * {@link org.springframework.security.core.Authentication}; without a chain
+     * covering them no token is parsed at all and the method annotations would
+     * deny every caller, including legitimate administrators.
+     *
+     * The URL layer here stays permissive on purpose. Authorization is decided
+     * per method, so the read endpoints these controllers also expose keep
+     * working exactly as before and only the mutations are gated.
+     */
+    static final String[] ADMIN_TOKEN_PATHS = {
+            "/api/master/accounting/**",
+            "/api/master/inventory-product/**",
+            "/api/master/expense/**",
+            "/api/master/salary-payment/**",
+            // Order fulfilment: advancing, cancelling and reading orders. Until
+            // P0-5A these were reachable by anyone on the network, which meant
+            // an anonymous caller could mark an order delivered or cancel it.
+            "/api/master/sales-order/**"
+    };
+
     @Value("${veloria.gst.security.mode:keycloak}")
     private String mode;
 
@@ -68,6 +92,29 @@ public class GstSecurityConfig {
             .csrf(csrf -> csrf.disable())
             .cors(cors -> {})
             .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+            .oauth2ResourceServer(oauth -> oauth
+                    .jwt(jwt -> jwt.jwtAuthenticationConverter(gstAuthenticationConverter())));
+        return http.build();
+    }
+
+    /**
+     * Decodes a bearer token on the administrative paths so {@code @PreAuthorize}
+     * has an authenticated principal to judge.
+     *
+     * Ordered after the GST chain and before the application-wide permissive
+     * chain. A request with no token still reaches the controller as anonymous
+     * and is refused by the method annotation on the mutating endpoints; a
+     * request with a token is judged on the authorities it carries.
+     */
+    @Bean
+    @Order(2)
+    public SecurityFilterChain adminTokenFilterChain(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher(ADMIN_TOKEN_PATHS)
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .csrf(csrf -> csrf.disable())
+            .cors(cors -> {})
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
             .oauth2ResourceServer(oauth -> oauth
                     .jwt(jwt -> jwt.jwtAuthenticationConverter(gstAuthenticationConverter())));
         return http.build();

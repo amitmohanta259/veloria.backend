@@ -19,6 +19,52 @@ public interface CustomerOrderRepository extends JpaRepository<CustomerOrderEnti
 
     Optional<CustomerOrderEntity> findByOrderCodeAndArchiveFalse(String orderCode);
 
+    /** The order a checkout reference already produced, if any. Backed by ux_customer_order_client_reference. */
+    Optional<CustomerOrderEntity> findByClientOrderReference(String clientOrderReference);
+
+    /**
+     * Takes the row lock for a status change, returning the status as it stands.
+     *
+     * <p>Two operators acting on one order at the same moment would otherwise
+     * both read the old status, both judge their transition legal against it,
+     * and both write — so an order could be cancelled and simultaneously packed,
+     * with whichever write landed second silently winning. Locking the row makes
+     * the second caller wait and re-read, so it judges its move against the
+     * status that actually committed.
+     *
+     * <p>Only {@code customer_order} is locked here, never
+     * {@code inventory_product}, so this cannot interleave with the checkout
+     * lock order established in P0-2 and cannot deadlock against it.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT status FROM customer_order
+             WHERE order_code = :orderCode AND archive = false
+             FOR UPDATE
+            """)
+    Optional<String> lockForStatusChange(@Param("orderCode") String orderCode);
+
+    /**
+     * Takes the order's row lock before its sale is posted, returning the status
+     * as it stands right now.
+     *
+     * <p>Two purposes. It serialises posting for one order, so concurrent
+     * backfills queue rather than race into the unique index. And it re-reads
+     * the status inside the posting transaction: a backfill reads every order up
+     * front and posts them one by one, so an order cancelled midway through that
+     * run would otherwise be judged on the status it held minutes earlier.
+     *
+     * <p>Locks the same row and in the same way as
+     * {@link #lockForStatusChange}, so the two cannot deadlock against each
+     * other, and never touches {@code inventory_product}, so neither can
+     * deadlock against checkout.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT status FROM customer_order
+             WHERE id = :orderId AND archive = false
+             FOR UPDATE
+            """)
+    Optional<String> lockForSalePosting(@Param("orderId") Long orderId);
+
     List<CustomerOrderEntity> findByArchiveFalseOrderByIdAsc();
 
     List<CustomerOrderEntity> findByStatusAndArchiveFalseOrderByIdAsc(String status);

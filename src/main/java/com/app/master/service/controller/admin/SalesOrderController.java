@@ -8,6 +8,7 @@ import com.app.master.service.core.response.ResponseCode;
 import com.app.master.service.service.admin.SalesOrderService;
 import lombok.Data;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -25,17 +26,20 @@ public class SalesOrderController extends AppController {
     }
 
     @PostMapping("/create")
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     public ResponseEntity<Response> create(@RequestBody SalesOrderRequest request) throws VeloriaException {
         UUID uuid = service.createSalesOrder(request);
         return success(ResponseCode.CREATED, "Sales order created successfully", uuid);
     }
 
     @GetMapping("/{uuid}")
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).VIEW_GST)")
     public ResponseEntity<Response> byUuid(@PathVariable UUID uuid) throws VeloriaException {
         return data(ResponseCode.FETCHED, "Sales order fetched successfully", service.byUuid(uuid));
     }
 
     @GetMapping("/all")
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).VIEW_GST)")
     public ResponseEntity<Response> allOrders(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Integer month,
@@ -48,11 +52,13 @@ public class SalesOrderController extends AppController {
     }
 
     @GetMapping("/stats")
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).VIEW_GST)")
     public ResponseEntity<Response> stats() throws VeloriaException {
         return data(ResponseCode.FETCHED, "Sales stats fetched successfully", service.getStats());
     }
 
     @PatchMapping("/order/{orderCode}/status")
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     public ResponseEntity<Response> updateStatus(
             @PathVariable String orderCode,
             @RequestBody Map<String, String> body) throws VeloriaException {
@@ -65,6 +71,7 @@ public class SalesOrderController extends AppController {
     }
 
     @PostMapping("/order/{orderCode}/cancel")
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     public ResponseEntity<Response> cancelOrder(
             @PathVariable String orderCode,
             @RequestBody Map<String, String> body) throws VeloriaException {
@@ -73,6 +80,7 @@ public class SalesOrderController extends AppController {
     }
 
     @GetMapping("/report")
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).VIEW_GST)")
     public ResponseEntity<Response> report() throws VeloriaException {
         return data(ResponseCode.FETCHED, "Sales report fetched", service.reportAll());
     }

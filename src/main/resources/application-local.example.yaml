@@ -1,0 +1,81 @@
+# Template for application-local.yaml — copy this file, do not edit it in place.
+#
+#   cp application-local.example.yaml application-local.yaml
+#
+# application-local.yaml is git-ignored and must never be committed. Every value
+# below is a placeholder or an environment lookup; put real credentials in your
+# environment, never in this file.
+#
+# Required before the application will start — these have no default, so an
+# unset variable is reported by name rather than failing later as a blank key:
+#   export AWS_ACCESS_KEY=...
+#   export AWS_SECRET_KEY=...
+
+server:
+  port: 8081
+
+spring:
+  application:
+    name: master-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+
+  hikari:
+    maximum-pool-size: 10
+    minimum-idle: 2
+    connection-timeout: 20000
+    idle-timeout: 600000
+    max-lifetime: 1800000
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+
+keycloak:
+  realm: veloria
+  tenant-realm: tenant-group
+  base-url: https://dev.auth.veloriafashion.com
+  auth-url: https://dev.auth.veloriafashion.com
+  client-id: veloria-backend
+  client-secret: ${KEYCLOAK_CLIENT_SECRET:dummy-client-secret}
+
+aws:
+  access-key: ${AWS_ACCESS_KEY}
+  secret-key: ${AWS_SECRET_KEY}
+  region: us-east-2
+  s3:
+    bucket-name: veloria-image
+
+logging:
+  level:
+    reactor:
+      netty: DEBUG
+    org:
+      springframework:
+        cloud:
+          gateway: DEBUG
+# GST security (spec sections 42, 43, 57).
+# mode=local uses the HMAC issuer at /api/master/dev-auth/token because Keycloak
+# is unreachable from a developer machine. Set mode=keycloak in every deployed
+# environment; the local issuer bean only exists under the "local" profile.
+veloria:
+  gst:
+    security:
+      mode: local
+      local-secret: ${VELORIA_GST_LOCAL_SECRET:local-development-only-secret-change-me-32b}
+      local-token-minutes: 480

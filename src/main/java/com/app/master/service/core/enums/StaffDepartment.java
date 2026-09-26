@@ -5,5 +5,6 @@ public enum StaffDepartment {
     LOGISTICS,
     ENGINEERING,
     HUMAN_RESOURCES,
-    OPERATIONS
+    OPERATIONS,
+    FINANCE
 }

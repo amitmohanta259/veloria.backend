@@ -9,6 +9,8 @@ import com.app.master.service.repository.admin.ChartOfAccountRepository;
 import com.app.master.service.service.admin.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import com.app.master.service.core.security.GstPermission;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -51,6 +53,7 @@ public class AccountingController extends AppController {
     }
 
     /** Posts every business record that has no journal entry yet. Idempotent. */
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     @PostMapping("/backfill")
     public ResponseEntity<Response> backfill() {
         return data(ResponseCode.CREATED, "Accounting backfill complete", postingService.backfill());
@@ -78,6 +81,7 @@ public class AccountingController extends AppController {
                         .map(a -> a.getStatus()).orElse("OPEN")));
     }
 
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).LOCK_PERIOD)")
     @PostMapping("/periods/{period}/close")
     public ResponseEntity<Response> close(@PathVariable String period,
                                           @RequestBody(required = false) Map<String, String> body)
@@ -95,6 +99,7 @@ public class AccountingController extends AppController {
         return data(ResponseCode.UPDATED, "Period closed", periodRepo.save(p));
     }
 
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).UNLOCK_PERIOD)")
     @PostMapping("/periods/{period}/reopen")
     public ResponseEntity<Response> reopen(@PathVariable String period,
                                            @RequestBody Map<String, String> body)
@@ -159,6 +164,7 @@ public class AccountingController extends AppController {
     }
 
     /** Corrects a posted entry by its mirror image. The original is retained. */
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     @PostMapping("/journals/{id}/reverse")
     public ResponseEntity<Response> reverse(@PathVariable Long id,
                                             @RequestBody Map<String, String> body)
@@ -183,6 +189,7 @@ public class AccountingController extends AppController {
      * an account left out of the request is left out of the books rather than
      * being treated as zero.
      */
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     @PostMapping("/opening-balances")
     public ResponseEntity<Response> postOpeningBalances(@RequestBody Map<String, Object> body)
             throws VeloriaException {

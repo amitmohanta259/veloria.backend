@@ -269,6 +269,18 @@ public class GstComplianceController extends AppController {
                 debitNoteService.create(orderCode, lines, body.getReasonCode(), body.getNotes()));
     }
 
+    /** Paged debit notes. Mirrors the credit-note listing on the movement ledger. */
+    @PreAuthorize("hasAuthority('VIEW_GST')")
+    @GetMapping("/debit-notes")
+    public ResponseEntity<Response> debitNotes(
+            @RequestParam(required = false) String period,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "25") int size) {
+        return data(ResponseCode.FETCHED, "Debit notes fetched",
+                debitNoteService.list(period, search, page, size));
+    }
+
     @PreAuthorize("hasAuthority('VIEW_GST')")
     @GetMapping("/debit-notes/{id}/items")
     public ResponseEntity<Response> debitNoteItems(@PathVariable Long id) {

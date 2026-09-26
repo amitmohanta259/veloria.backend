@@ -6,6 +6,8 @@ import com.app.master.service.core.response.ResponseCode;
 import com.app.master.service.service.admin.ExpenseService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import com.app.master.service.core.security.GstPermission;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -21,6 +23,7 @@ public class ExpenseController extends AppController {
         return data(ResponseCode.FETCHED, "Expenses fetched successfully", expenseService.getAllExpenses());
     }
 
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     @PostMapping("/create")
     public ResponseEntity<Response> createExpense(@RequestBody ExpenseService.CreateExpenseRequest req) {
         return success(ResponseCode.CREATED, "Expense created successfully", expenseService.createExpense(req));

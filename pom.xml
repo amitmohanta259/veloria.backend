@@ -178,9 +178,36 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- Bean Validation implementation. Without it the jakarta.validation
+             annotations already present on the request DTOs (@NotBlank, @NotEmpty,
+             @Min) are inert: the API is on the classpath, the validator is not,
+             so @Valid silently does nothing. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Razorpay. Used for the Orders and Refunds APIs and for the two
+             signature checks (payment callback and webhook). The SDK is the
+             vendor's own, so signature verification follows their published
+             implementation rather than a hand-rolled HMAC. -->
+        <dependency>
+            <groupId>com.razorpay</groupId>
+            <artifactId>razorpay-java</artifactId>
+            <version>1.4.8</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Lets tests assert who may move an order: @WithMockUser / @WithAnonymousUser
+             drive the same @PreAuthorize checks the running application uses. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
 

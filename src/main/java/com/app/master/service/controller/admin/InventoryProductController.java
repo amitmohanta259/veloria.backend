@@ -7,6 +7,8 @@ import com.app.master.service.core.response.Response;
 import com.app.master.service.core.response.ResponseCode;
 import com.app.master.service.service.admin.InventoryProductService;
 import org.springframework.http.ResponseEntity;
+import com.app.master.service.core.security.GstPermission;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,6 +26,7 @@ public class InventoryProductController extends AppController {
         this.service = service;
     }
 
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     @PostMapping("/create/{subCategoryUuid}")
     public ResponseEntity<Response> createInventoryProduct(@PathVariable UUID subCategoryUuid,
                                                            @RequestPart("product") InventoryProduct product,
@@ -33,6 +36,7 @@ public class InventoryProductController extends AppController {
         return success(ResponseCode.CREATED, "Inventory product created successfully");
     }
 
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     @PutMapping("/update/{productUuid}")
     public ResponseEntity<Response> updateInventoryProduct(@PathVariable UUID productUuid,
                                                            @RequestPart("product") InventoryProduct product,
@@ -48,12 +52,14 @@ public class InventoryProductController extends AppController {
         return data(ResponseCode.FETCHED, "Inventory product by uuid fetched successfully", service.getInventoryProductByUuid(uuid));
     }
 
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     @PutMapping("/toggle")
     public ResponseEntity<Response> toggleInventoryProduct(@RequestParam(required = false) UUID productUuid) throws VeloriaException {
 
         return success(ResponseCode.UPDATED, service.toggleInventoryProduct(productUuid) ? "Inventory product activated successfully" : "Inventory product de-activated successfully");
     }
 
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     @DeleteMapping("/{uuid}")
     public ResponseEntity<Response> deleteInventoryProduct(@PathVariable UUID uuid) throws VeloriaException {
 
@@ -80,6 +86,7 @@ public class InventoryProductController extends AppController {
         return data(ResponseCode.FETCHED, "Inventory stats fetched successfully", service.getInventoryStats());
     }
 
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     @PatchMapping("/{uuid}/stock/add")
     public ResponseEntity<Response> addStock(@PathVariable UUID uuid,
                                              @RequestParam String size,

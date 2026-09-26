@@ -28,6 +28,11 @@ public class ClientSessionEntity {
     private String email;
     private String phone;
 
+    /** When the login itself ends. */
     @Column(nullable = false)
     private Instant expiry;
+
+    /** When this token value stops being accepted; rotation issues a successor. */
+    @Column(name = "access_expiry", nullable = false)
+    private Instant accessExpiry;
 }

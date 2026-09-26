@@ -1,6 +1,7 @@
 package com.app.master.service.repository.admin;
 
 import com.app.master.service.core.entity.InventorySubCategoryEntity;
+import com.app.master.service.core.order.OrderStatus;
 import com.app.master.service.core.response.admin.InventoryCollectionAllResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,12 +37,12 @@ public interface InventorySubCategoryRepository extends JpaRepository<InventoryS
     @Query(nativeQuery = true, value = """
             WITH product_stocks AS (
                 SELECT ip.sub_category_id,
-                    COUNT(CASE WHEN co.status IN ('ORDER_PLACED','PACKED','IN_TRANSIT','DISPATCHED','DELIVERED')
-                                AND coi.reason_for_return IS NULL THEN 1 END) AS sold_qty,
+                    COUNT(CASE WHEN co.status IN (""" + OrderStatus.CONSUMING_SQL + """
+                          ) THEN 1 END) AS sold_qty,
                     GREATEST(0, COALESCE(ip.initial_stock, 0)
-                        - COUNT(CASE WHEN co.status IN ('ORDER_PLACED','PACKED','IN_TRANSIT','DISPATCHED','DELIVERED')
-                                      AND coi.reason_for_return IS NULL THEN 1 END)
-                        + COUNT(CASE WHEN co.status = 'RETURNED' OR coi.reason_for_return IS NOT NULL THEN 1 END)
+                        - COUNT(CASE WHEN co.status IN (""" + OrderStatus.CONSUMING_SQL + """
+                                 ) THEN 1 END)
+                        + COUNT(CASE WHEN coi.return_condition IS NOT NULL THEN 1 END)
                     ) AS current_stock
                 FROM inventory_product ip
                 LEFT JOIN customer_order_item coi ON coi.product_uuid = ip.uuid AND coi.archive = false

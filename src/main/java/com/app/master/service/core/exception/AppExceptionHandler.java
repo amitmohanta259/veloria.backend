@@ -40,6 +40,9 @@ public class AppExceptionHandler extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleCustomException(VeloriaException exception, WebRequest request) {
         HttpStatus httpStatus = HttpStatus.BAD_REQUEST;
         switch (exception.getErrorCode()) {
+            // Without this an expired session left the server as 400, so the
+            // client's 401 handling never fired and a dead session looked live.
+            case UNAUTHORIZED -> httpStatus = HttpStatus.UNAUTHORIZED;
             case UNSUPPORTED_MEDIA_TYPE -> httpStatus = HttpStatus.UNSUPPORTED_MEDIA_TYPE;
             case NOT_FOUND -> httpStatus = HttpStatus.BAD_REQUEST;
             case INTERNAL_ERROR, DB_ERROR, IAM_ERROR, AWS_ERROR -> httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
@@ -162,7 +165,17 @@ public class AppExceptionHandler extends ResponseEntityExceptionHandler {
         log.error("Method Args Exception", exception);
         String message;
         try {
-            message = exception.getBindingResult().getFieldError().getDefaultMessage();
+            // Name the offending field: "items[0].quantity: quantity must be at
+            // least 1" tells the caller what to fix, where the message alone did
+            // not. Field paths and messages only — never the submitted value,
+            // and never the exception type.
+            message = exception.getBindingResult().getFieldErrors().stream()
+                    .map(f -> f.getField() + ": " + f.getDefaultMessage())
+                    .sorted()
+                    .collect(Collectors.joining("; "));
+            if (StringUtils.isBlank(message)) {
+                message = exception.getBindingResult().getFieldError().getDefaultMessage();
+            }
         } catch (Exception e) {
             message = extractLastPhrase(exception.getBindingResult().toString());
             if (StringUtils.isBlank(message)) message = exception.getBindingResult().toString();

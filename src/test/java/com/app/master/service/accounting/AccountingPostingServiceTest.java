@@ -29,6 +29,8 @@ class AccountingPostingServiceTest {
 
     private JournalService journal;
     private SalesInvoiceRepository salesInvoiceRepo;
+    private CustomerOrderRepository orderRepo;
+    private JournalEntryRepository journalRepo;
     private AccountingPostingService service;
 
     @BeforeEach
@@ -37,8 +39,18 @@ class AccountingPostingServiceTest {
         // No invoice for these orders, so the posting falls back to the order.
         salesInvoiceRepo = mock(SalesInvoiceRepository.class);
         when(salesInvoiceRepo.findByOrderCodeOrderByIdDesc(any())).thenReturn(List.of());
-        service = new AccountingPostingService(journal,
-                mock(CustomerOrderRepository.class), salesInvoiceRepo, mock(ExpenseRepository.class),
+        // postSale now judges eligibility on the status it reads back under the
+        // order's row lock, and refuses an order it has already accounted for.
+        // These orders are live and unposted, so the sale rules below still apply.
+        orderRepo = mock(CustomerOrderRepository.class);
+        when(orderRepo.lockForSalePosting(any())).thenReturn(java.util.Optional.of("ORDER_PLACED"));
+        journalRepo = mock(JournalEntryRepository.class);
+        when(journalRepo.existsBySourceTypeAndSourceId(any(), any())).thenReturn(false);
+
+        service = new AccountingPostingService(journal, journalRepo,
+                orderRepo, mock(com.app.master.service.repository.payment.PaymentAttemptRepository.class),
+                mock(com.app.master.service.repository.payment.PaymentRefundRepository.class),
+                salesInvoiceRepo, mock(ExpenseRepository.class),
                 mock(SalaryPaymentRepository.class), mock(PurchaseInvoiceRepository.class),
                 mock(GstPaymentRepository.class));
         when(journal.post(any())).thenAnswer(i -> JournalEntryEntity.builder().id(1L).build());
@@ -154,8 +166,11 @@ class AccountingPostingServiceTest {
                 {"SOMETHING_ELSE", AccountingPostingService.OTHER_EXPENSE}}) {
             JournalService j = mock(JournalService.class);
             when(j.post(any())).thenReturn(JournalEntryEntity.builder().id(1L).build());
-            AccountingPostingService s = new AccountingPostingService(j,
-                    mock(CustomerOrderRepository.class), salesInvoiceRepo, mock(ExpenseRepository.class),
+            AccountingPostingService s = new AccountingPostingService(j, mock(JournalEntryRepository.class),
+                    mock(CustomerOrderRepository.class),
+                    mock(com.app.master.service.repository.payment.PaymentAttemptRepository.class),
+                    mock(com.app.master.service.repository.payment.PaymentRefundRepository.class),
+                    salesInvoiceRepo, mock(ExpenseRepository.class),
                     mock(SalaryPaymentRepository.class), mock(PurchaseInvoiceRepository.class),
                     mock(GstPaymentRepository.class));
 

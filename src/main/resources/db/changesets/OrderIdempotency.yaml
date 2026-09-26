@@ -1,0 +1,46 @@
+databaseChangeLog:
+  # Checkout idempotency.
+  #
+  # A retried checkout must resolve to the order the first attempt created,
+  # rather than creating a second one — which, since inventory is deducted by
+  # order creation, would also consume stock twice.
+  #
+  # Both columns are nullable and the unique index is partial, so the orders
+  # that already exist (which have no reference) remain valid and a client that
+  # has not been updated keeps working exactly as before.
+  - changeSet:
+      id: add_order_idempotency_columns
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: customer_order
+            columns:
+              # Opaque, client-generated, one per checkout attempt and reused on retry.
+              - column:
+                  name: client_order_reference
+                  type: VARCHAR(64)
+              # SHA-256 of the canonical request, so a reused reference carrying a
+              # different cart is refused instead of silently returning the first order.
+              - column:
+                  name: request_fingerprint
+                  type: VARCHAR(64)
+
+  - changeSet:
+      id: add_order_idempotency_unique_index
+      author: veloria
+      changes:
+        # Partial: only rows that actually carry a reference are constrained, so
+        # historical orders and reference-less requests are unaffected.
+        #
+        # The scope is global rather than per customer. A reference identifies one
+        # checkout attempt in the whole system; on a collision the service checks
+        # ownership and refuses a reference belonging to someone else without
+        # revealing anything about that order. Per-customer scope would instead let
+        # a second customer quietly create their own order under the same
+        # reference, which makes the identifier mean two different things.
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX ux_customer_order_client_reference
+              ON customer_order (client_order_reference)
+              WHERE client_order_reference IS NOT NULL
+            rollback: DROP INDEX IF EXISTS ux_customer_order_client_reference

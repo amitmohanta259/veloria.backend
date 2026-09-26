@@ -6,6 +6,8 @@ import com.app.master.service.core.response.ResponseCode;
 import com.app.master.service.service.admin.SalaryPaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import com.app.master.service.core.security.GstPermission;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -28,12 +30,14 @@ public class SalaryPaymentController extends AppController {
         return data(ResponseCode.FETCHED, "Salary payment fetched successfully", detail);
     }
 
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     @PostMapping("/create")
     public ResponseEntity<Response> create(@RequestBody SalaryPaymentService.CreateSalaryPaymentRequest req) {
         return success(ResponseCode.CREATED, "Salary payment created successfully", salaryPaymentService.createPayment(req));
     }
 
     /** Records that this month's salaries have been disbursed. */
+    @PreAuthorize("hasAuthority(T(com.app.master.service.core.security.GstPermission).ADMIN_GST)")
     @PostMapping("/{id}/mark-paid")
     public ResponseEntity<Response> markPaid(@PathVariable Long id)
             throws com.app.master.service.core.exception.VeloriaException {

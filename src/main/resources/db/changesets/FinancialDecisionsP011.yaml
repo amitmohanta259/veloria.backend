@@ -1,0 +1,116 @@
+databaseChangeLog:
+
+  # ── CP-1: a journal's posting date is not always its transaction date ──────
+  #
+  # Until now journal_date carried both meanings, which is why a sale whose
+  # period was closed had nowhere to go: the only date it had was the one the
+  # period rejected. The approved policy keeps the order's own date and posts
+  # into the next open period, so the two dates must be separate columns.
+  #
+  # journal_date becomes the POSTING date — the date whose period the entry
+  # lands in, and the one the acc_reject_closed_period trigger checks.
+  # transaction_date is when the business event actually happened.
+  #
+  # Backfilled to journal_date for every existing entry, because for all of them
+  # the two genuinely were the same day. The 54 historical journals therefore
+  # keep every value they already had.
+  - changeSet:
+      id: p011_journal_transaction_date
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: journal_entry
+            columns:
+              - column: {name: transaction_date, type: DATE}
+        - sql:
+            sql: UPDATE journal_entry SET transaction_date = journal_date WHERE transaction_date IS NULL
+            rollback: SELECT 1
+
+  # ── COD fee tax snapshot (P0-11 §2, §6) ───────────────────────────────────
+  #
+  # The COD fee is approved as taxable Other Income. Its tax must be auditable
+  # and frozen: a return prepared next year must reproduce what was charged this
+  # year, not what today's rules would charge.
+  #
+  # Deliberately separate from the product's taxableValue/cgstAmount/... — the
+  # product GST snapshot is a statutory figure per line and must not absorb a
+  # charge that is not a product.
+  #
+  # cod_fee_tax_rate_bp is nullable on purpose. NULL means "no rate was
+  # resolved", which is not the same as 0%: the existing GST engine draws that
+  # distinction and so does this.
+  - changeSet:
+      id: p011_order_cod_fee_tax_snapshot
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: customer_order
+            columns:
+              - column: {name: cod_fee_taxable_paise, type: BIGINT, defaultValueNumeric: 0}
+              - column: {name: cod_fee_cgst_paise, type: BIGINT, defaultValueNumeric: 0}
+              - column: {name: cod_fee_sgst_paise, type: BIGINT, defaultValueNumeric: 0}
+              - column: {name: cod_fee_igst_paise, type: BIGINT, defaultValueNumeric: 0}
+              - column: {name: cod_fee_tax_paise, type: BIGINT, defaultValueNumeric: 0}
+              # Basis points, as the tax master states them: 250 = 2.5%.
+              - column: {name: cod_fee_tax_rate_bp, type: INT}
+              # The service code the rate was looked up by. Never a rate.
+              - column: {name: cod_fee_sac_code, type: VARCHAR(16)}
+              # RULE_APPLIED, NO_RULE, NO_HSN or NOT_CONFIGURED.
+              - column: {name: cod_fee_tax_resolution, type: VARCHAR(24)}
+
+  # ── Gateway fee, as five separate facts (P0-11 §29) ───────────────────────
+  #
+  # amount_paise is the gross the customer paid and gateway_fee_paise the fee
+  # Razorpay actually charged; both already exist. The approved 50/50 split and
+  # the net settlement are derived from the fee — never from a percentage — and
+  # are stored so that what the books say can be reconciled against what the
+  # gateway did.
+  - changeSet:
+      id: p011_payment_attempt_gateway_fee_split
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: payment_attempt
+            columns:
+              - column: {name: gateway_fee_business_paise, type: BIGINT}
+              - column: {name: gateway_fee_customer_paise, type: BIGINT}
+              - column: {name: net_settlement_paise, type: BIGINT}
+
+  # ── Refund: which return earned it, and where the money went ─────────────
+  #
+  # A refund exists because a specific return was verified, and the approved
+  # workflow refuses to refund without one. Recording the link is what makes
+  # "refund only after warehouse verification" auditable after the fact rather
+  # than only enforced at the moment of the call.
+  - changeSet:
+      id: p011_payment_refund_return_and_destination
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: payment_refund
+            columns:
+              - column: {name: return_request_id, type: BIGINT}
+              # RAZORPAY_SOURCE for a gateway refund to the original instrument.
+              # A COD order has no electronic destination; see the P0-11 report.
+              - column: {name: refund_destination, type: VARCHAR(32)}
+        - sql:
+            sql: >
+              CREATE INDEX IF NOT EXISTS ix_payment_refund_return
+              ON payment_refund (return_request_id)
+              WHERE return_request_id IS NOT NULL
+            rollback: DROP INDEX IF EXISTS ix_payment_refund_return
+
+  # One verified return may not be refunded twice. The idempotency key already
+  # stops a repeated request; this stops two differently-keyed requests for the
+  # same return, which is the shape a double-click on an admin screen takes.
+  - changeSet:
+      id: p011_payment_refund_one_per_return
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX IF NOT EXISTS ux_payment_refund_per_return
+              ON payment_refund (return_request_id)
+              WHERE return_request_id IS NOT NULL
+                AND status <> 'FAILED'
+            rollback: DROP INDEX IF EXISTS ux_payment_refund_per_return

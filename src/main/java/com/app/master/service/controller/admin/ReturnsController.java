@@ -12,6 +12,7 @@ import com.app.master.service.repository.admin.CustomerOrderRepository;
 import com.app.master.service.repository.admin.OrderReturnRequestRepository;
 import com.app.master.service.service.admin.ReturnProcessingService;
 import com.app.master.service.service.admin.ReturnsService;
+import com.app.master.service.service.payment.RefundService;
 import com.google.common.base.Strings;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -33,6 +34,7 @@ public class ReturnsController extends AppController {
     private final CustomerOrderRepository customerOrderRepository;
     private final CustomerOrderItemRepository customerOrderItemRepository;
     private final ReturnProcessingService returnProcessingService;
+    private final com.app.master.service.service.payment.RefundService refundService;
     private final com.app.master.service.core.security.GstSecurityContext securityContext;
 
     public ReturnsController(ReturnsService service,
@@ -40,12 +42,14 @@ public class ReturnsController extends AppController {
                              CustomerOrderRepository customerOrderRepository,
                              CustomerOrderItemRepository customerOrderItemRepository,
                              ReturnProcessingService returnProcessingService,
+                             com.app.master.service.service.payment.RefundService refundService,
                              com.app.master.service.core.security.GstSecurityContext securityContext) {
         this.service = service;
         this.returnRequestRepository = returnRequestRepository;
         this.customerOrderRepository = customerOrderRepository;
         this.customerOrderItemRepository = customerOrderItemRepository;
         this.returnProcessingService = returnProcessingService;
+        this.refundService = refundService;
         this.securityContext = securityContext;
     }
 
@@ -231,9 +235,72 @@ public class ReturnsController extends AppController {
         return data(ResponseCode.FETCHED, "Returnable items fetched successfully", payload);
     }
 
+    /**
+     * Whether a verified return has earned a refund, and for how much.
+     *
+     * <p>Read-only. An operator sees the answer, and the reason when it is no,
+     * before committing to anything.
+     */
+    @PreAuthorize("hasAuthority('VIEW_GST')")
+    @GetMapping("/{returnRequestId}/refund-eligibility")
+    public ResponseEntity<Response> refundEligibility(@PathVariable Long returnRequestId)
+            throws VeloriaException {
+        RefundService.Eligibility e = refundService.eligibilityFor(returnRequestId);
+
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("returnRequestId", returnRequestId);
+        payload.put("eligible", e.eligible());
+        payload.put("reason", e.reason());
+        payload.put("refundAmountPaise", e.amountPaise());
+        payload.put("productRefundPaise", e.productPaise());
+        payload.put("gstRefundPaise", e.gstPaise());
+        payload.put("destination", e.destination());
+        return data(ResponseCode.FETCHED, "Refund eligibility fetched successfully", payload);
+    }
+
+    /**
+     * Issues the refund a verified return has earned.
+     *
+     * <p>Requires the administrator authority, not the return-verification one: a
+     * refund moves money, and inspecting goods is not the same permission as
+     * paying a customer back. The idempotency key is required so a retried or
+     * double-clicked request cannot return the money twice.
+     */
+    @PreAuthorize("hasAuthority('ADMIN_GST')")
+    @PostMapping("/{returnRequestId}/refund")
+    public ResponseEntity<Response> refund(@PathVariable Long returnRequestId,
+                                           @RequestBody RefundRequest body) throws VeloriaException {
+        if (Strings.isNullOrEmpty(body.getIdempotencyKey())) {
+            throw new VeloriaException(ResponseCode.BAD_REQUEST, "idempotencyKey is required");
+        }
+
+        var refund = refundService.issue(returnRequestId, body.getIdempotencyKey(), currentUser());
+
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("refundId", refund.getUuid());
+        payload.put("orderCode", refund.getOrderCode());
+        payload.put("status", refund.getStatus());
+        payload.put("amountPaise", refund.getAmountPaise());
+        payload.put("productRefundedPaise", refund.getProductRefundedPaise());
+        payload.put("gstRefundedPaise", refund.getGstRefundedPaise());
+        payload.put("destination", refund.getRefundDestination());
+        payload.put("gatewayRefundId", refund.getRazorpayRefundId());
+        payload.put("failureDescription", refund.getFailureDescription());
+
+        String message = RefundService.REFUNDED.equals(refund.getStatus())
+                ? "Refund issued successfully"
+                : "Refund could not be completed at the gateway; no accounting has been recorded";
+        return data(ResponseCode.OK, message, payload);
+    }
+
     /** The authenticated caller, for audit attribution. */
     private String currentUser() {
         return securityContext.actor();
+    }
+
+    @lombok.Data
+    public static class RefundRequest {
+        private String idempotencyKey;
     }
 
     @lombok.Data

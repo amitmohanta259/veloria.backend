@@ -26,6 +26,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -376,31 +377,46 @@ public class InventoryProductServiceImpl extends AppService implements Inventory
         }).toList();
     }
 
+    /**
+     * Adds stock for a product, optionally for one size.
+     *
+     * Every write here is a single atomic statement. The previous
+     * read-modify-write lost concurrent additions: two +10 restocks against 100
+     * could each read 100 and each write 110, leaving 110 instead of 120. The
+     * increment now happens inside the UPDATE, so PostgreSQL's row lock
+     * serialises concurrent callers and every addition lands.
+     *
+     * The transaction spans the size row and the product roll-up so the two can
+     * never be left disagreeing.
+     *
+     * This does not change the stock model: {@code initial_stock} remains
+     * "total ever stocked" and current stock is still derived on read as
+     * initial − sold + returned.
+     */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void addStock(UUID productUuid, String size, long qty) throws VeloriaException {
+        if (qty <= 0) {
+            throw new VeloriaException(ResponseCode.BAD_REQUEST, "Stock quantity to add must be at least 1");
+        }
         InventoryProductEntity product = productRepository.findByUuid(productUuid)
                 .orElseThrow(() -> new VeloriaException(ResponseCode.BAD_REQUEST, "Invalid product uuid"));
 
         if (size != null && !size.isBlank()) {
-            List<InventoryProductSizeStockEntity> existing = sizeStockRepository
-                    .findByProductIdAndArchiveFalseOrderByIdAsc(product.getId());
-            InventoryProductSizeStockEntity sizeEntity = existing.stream()
-                    .filter(s -> size.trim().equalsIgnoreCase(s.getSize()))
-                    .findFirst().orElse(null);
-            if (sizeEntity != null) {
-                sizeEntity.setInitialStock(sizeEntity.getInitialStock() + qty);
-                sizeStockRepository.save(sizeEntity);
-            } else {
+            String trimmed = size.trim();
+            if (sizeStockRepository.addStockToSize(product.getId(), trimmed, qty) == 0) {
+                // No active row for this size yet — create it.
                 sizeStockRepository.save(InventoryProductSizeStockEntity.builder()
-                        .productId(product.getId()).size(size.trim()).initialStock(qty).build());
+                        .productId(product.getId()).size(trimmed).initialStock(qty).build());
             }
-            long total = sizeStockRepository.findByProductIdAndArchiveFalseOrderByIdAsc(product.getId())
-                    .stream().mapToLong(InventoryProductSizeStockEntity::getInitialStock).sum();
-            product.setInitialStock(total);
-        } else {
-            product.setInitialStock((product.getInitialStock() != null ? product.getInitialStock() : 0L) + qty);
         }
-        productRepository.save(product);
+        // The product total moves by the same delta, applied atomically. It is
+        // deliberately NOT recomputed as SUM(size rows): that subquery reads a
+        // snapshot taken before a concurrent addition to a *different* size
+        // commits, so two simultaneous additions could roll up to a stale total
+        // (observed: two +100 additions to different sizes left the product at
+        // 390 instead of 400, while both size rows were correct).
+        productRepository.addStockToProduct(product.getId(), qty);
     }
 
     private String getSubCategoryName(Long subCategoryId) throws VeloriaException {

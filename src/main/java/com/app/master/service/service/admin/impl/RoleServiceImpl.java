@@ -25,9 +25,21 @@ import java.util.stream.Collectors;
 @Service
 public class RoleServiceImpl implements RoleService {
 
+    /**
+     * Every module a role can be granted access to.
+     *
+     * Permissions are stored for whatever module the request names, but every
+     * read projects through this list — so a module missing here is saved and
+     * then silently dropped on the way back out, which looks to the user like
+     * the grant never took. It must stay in step with MODULES in the admin UI.
+     */
     private static final List<String> ALL_MODULES = List.of(
             "DASHBOARD", "ANALYTICS", "INVENTORY", "STAFF",
-            "SALES", "SUPPLIERS", "FINANCIALS", "RETURNS", "SETTINGS"
+            "SALES", "SUPPLIERS", "CUSTOMERS",
+            "FINANCIALS", "FINANCIALS_REPORT", "INDICATORS",
+            "EXPENSES", "SALARY_PAYMENT", "RETURNS",
+            "GST_MANAGEMENT", "GST_ACCOUNTING", "GST_TRACKER", "GST_COMPLIANCE",
+            "BUSINESS_DETAILS", "SETTINGS"
     );
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("MMM dd, yyyy");
 
@@ -61,7 +73,17 @@ public class RoleServiceImpl implements RoleService {
         List<RoleEntity> roles = (department != null && !department.isBlank())
                 ? roleRepository.findByDepartmentOrderByCreatedDesc(department)
                 : roleRepository.findAllByOrderByDepartmentAscCreatedDesc();
-        return roles.stream().map(r -> toResponse(r, List.of())).toList();
+        // Fetched in one query and grouped, rather than passing an empty list:
+        // without the real rows every role reports all-false and the directory
+        // shows "0 modules" no matter what has been granted.
+        Map<Long, List<RolePermissionEntity>> byRole = rolePermissionRepository
+                .findByRoleIdIn(roles.stream().map(RoleEntity::getId).toList())
+                .stream()
+                .collect(Collectors.groupingBy(RolePermissionEntity::getRoleId));
+
+        return roles.stream()
+                .map(r -> toResponse(r, byRole.getOrDefault(r.getId(), List.of())))
+                .toList();
     }
 
     @Override

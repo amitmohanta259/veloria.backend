@@ -1,10 +1,12 @@
 package com.app.master.service.repository.admin;
 
 import com.app.master.service.core.entity.InventoryProductEntity;
+import com.app.master.service.core.order.OrderStatus;
 import com.app.master.service.core.response.admin.InventoryProductListResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -16,6 +18,78 @@ import java.util.UUID;
 
 @Repository
 public interface InventoryProductRepository extends JpaRepository<InventoryProductEntity, Long> {
+
+    /**
+     * Takes the per-product inventory lock for the duration of the transaction.
+     *
+     * Stock in this application is <em>derived</em> (initial − sold + returned),
+     * so there is no counter to update conditionally: placing the order *is* the
+     * deduction. This row is therefore used as the serialisation point — two
+     * checkouts for the same product cannot both read "1 available" and both
+     * insert, because the second blocks here until the first commits and then
+     * re-reads with a fresh statement snapshot.
+     *
+     * Callers must acquire these in ascending {@code id} order; see
+     * {@code ClientOrderServiceImpl.reserveInventory}.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT id FROM inventory_product WHERE id = :productId FOR UPDATE
+            """)
+    Long lockForInventoryUpdate(@Param("productId") Long productId);
+
+    /**
+     * Units available for sale right now, by the application's own stock model:
+     *
+     * <pre>available = initial_stock − away from the shelf + handled back in</pre>
+     *
+     * "Away from the shelf" is every {@link OrderStatus#consumesStock()} status:
+     * the whole outbound journey and the whole return journey. "Handled back in"
+     * is a line with a return condition recorded against it, which is the point
+     * at which someone physically received and inspected the goods.
+     *
+     * <p>Deliberately <em>not</em> keyed on {@code reason_for_return}: that is
+     * written the moment a customer asks to return something, and crediting
+     * stock then counted goods as sellable while they were still in the
+     * customer's house — and, because the same field also removed the line from
+     * the sold side, counted them twice over.
+     *
+     * <p>Two deliberate differences from the display queries:
+     * <ul>
+     *   <li>it sums {@code coi.quantity} rather than counting rows, so an order
+     *       for five units consumes five;</li>
+     *   <li>it is not clamped with {@code GREATEST(0, …)}, so an oversold state
+     *       is visible as a negative number instead of being hidden as zero.</li>
+     * </ul>
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT COALESCE(ip.initial_stock, 0)
+                 - COALESCE((SELECT SUM(coi.quantity)
+                               FROM customer_order_item coi
+                               JOIN customer_order co ON co.id = coi.customer_order_id AND co.archive = false
+                              WHERE coi.product_uuid = ip.uuid
+                                AND coi.archive = false
+                                AND co.status IN (""" + OrderStatus.CONSUMING_SQL + """
+                            )), 0)
+                 + COALESCE((SELECT SUM(coi.quantity)
+                               FROM customer_order_item coi
+                               JOIN customer_order co ON co.id = coi.customer_order_id AND co.archive = false
+                              WHERE coi.product_uuid = ip.uuid
+                                AND coi.archive = false
+                                AND coi.return_condition IS NOT NULL), 0)
+              FROM inventory_product ip
+             WHERE ip.id = :productId
+            """)
+    Long availableStock(@Param("productId") Long productId);
+
+    /** Adds to a sizeless product's stock in one statement. See {@code addStockToSize}. */
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            UPDATE inventory_product
+               SET initial_stock = COALESCE(initial_stock, 0) + :quantity
+             WHERE id = :productId
+            """)
+    int addStockToProduct(@Param("productId") Long productId,
+                          @Param("quantity") long quantity);
 
     Optional<InventoryProductEntity> findByUuid(UUID productUuid);
 
@@ -125,12 +199,10 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
                 ip.uuid                                              AS product_uuid,
                 COUNT(CASE
                     WHEN coi.id IS NOT NULL
-                         AND co.status IN ('ORDER_PLACED','PACKED','IN_TRANSIT','DISPATCHED','DONE','DELIVERED')
-                         AND coi.reason_for_return IS NULL
-                    THEN 1 END)                                      AS in_sold,
+                         AND co.status IN (""" + OrderStatus.CONSUMING_SQL + """
+                    ) THEN 1 END)                                    AS in_sold,
                 COUNT(CASE
                     WHEN coi.id IS NOT NULL
-                         AND (co.status = 'RETURNED' OR coi.reason_for_return IS NOT NULL)
                          AND coi.return_condition = 'PRODUCT_OK'
                     THEN 1 END)                                      AS returned,
                 COUNT(CASE
@@ -141,12 +213,11 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
                     COALESCE(ip.initial_stock, 0)
                     - COUNT(CASE
                         WHEN coi.id IS NOT NULL
-                             AND co.status IN ('ORDER_PLACED','PACKED','IN_TRANSIT','DISPATCHED','DONE','DELIVERED')
-                             AND coi.reason_for_return IS NULL
-                        THEN 1 END)
+                             AND co.status IN (""" + OrderStatus.CONSUMING_SQL + """
+                        ) THEN 1 END)
                     + COUNT(CASE
                         WHEN coi.id IS NOT NULL
-                             AND (co.status = 'RETURNED' OR coi.reason_for_return IS NOT NULL)
+                             AND coi.return_condition IS NOT NULL
                         THEN 1 END)
                 )                                                    AS in_inventory
             FROM inventory_product ip
@@ -214,9 +285,9 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
                     ip.price_currency,
                     GREATEST(0,
                         COALESCE(ip.initial_stock, 0)
-                        - COUNT(CASE WHEN co.status IN ('ORDER_PLACED','PACKED','IN_TRANSIT','DISPATCHED','DELIVERED')
-                                      AND coi.reason_for_return IS NULL THEN 1 END)
-                        + COUNT(CASE WHEN co.status = 'RETURNED' OR coi.reason_for_return IS NOT NULL THEN 1 END)
+                        - COUNT(CASE WHEN co.status IN (""" + OrderStatus.CONSUMING_SQL + """
+                                 ) THEN 1 END)
+                        + COUNT(CASE WHEN coi.return_condition IS NOT NULL THEN 1 END)
                     ) AS current_stock
                 FROM inventory_product ip
                 LEFT JOIN customer_order_item coi ON coi.product_uuid = ip.uuid AND coi.archive = false
@@ -238,9 +309,9 @@ public interface InventoryProductRepository extends JpaRepository<InventoryProdu
                 ip.uuid,
                 GREATEST(0,
                     COALESCE(ip.initial_stock, 0)
-                    - COUNT(CASE WHEN co.status IN ('ORDER_PLACED','PACKED','IN_TRANSIT','DISPATCHED','DELIVERED')
-                                  AND coi.reason_for_return IS NULL THEN 1 END)
-                    + COUNT(CASE WHEN co.status = 'RETURNED' OR coi.reason_for_return IS NOT NULL THEN 1 END)
+                    - COUNT(CASE WHEN co.status IN (""" + OrderStatus.CONSUMING_SQL + """
+                             ) THEN 1 END)
+                    + COUNT(CASE WHEN coi.return_condition IS NOT NULL THEN 1 END)
                 ) AS current_stock
             FROM inventory_product ip
             LEFT JOIN customer_order_item coi ON coi.product_uuid = ip.uuid AND coi.archive = false

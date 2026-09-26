@@ -1,0 +1,25 @@
+databaseChangeLog:
+  # A session now has two lifetimes. `expiry` is how long the login lasts
+  # (unchanged, 7 days). `access_expiry` is how long one token *value* is
+  # accepted before it must be rotated (10 minutes). Rotation issues a
+  # successor and retires the old value after a short grace period, so a
+  # token that leaks is only useful briefly while the user is never signed
+  # out mid-session.
+  - changeSet:
+      id: add_client_session_access_expiry
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: client_session
+            columns:
+              - column:
+                  name: access_expiry
+                  type: TIMESTAMP
+        # Sessions issued before rotation existed keep working until their
+        # first refresh, rather than logging everyone out on deploy.
+        - sql:
+            sql: UPDATE client_session SET access_expiry = expiry WHERE access_expiry IS NULL
+        - addNotNullConstraint:
+            tableName: client_session
+            columnName: access_expiry
+            columnDataType: TIMESTAMP
