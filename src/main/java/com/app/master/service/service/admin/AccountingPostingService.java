@@ -410,13 +410,16 @@ public class AccountingPostingService {
 
         long product = nz(refund.getProductRefundedPaise());
         long gst = nz(refund.getGstRefundedPaise());
+        long codFee = nz(refund.getCodFeeRefundedPaise());
+        long codTax = nz(refund.getCodTaxRefundedPaise());
         long total = nz(refund.getAmountPaise());
         if (total <= 0) return null;
 
-        if (product + gst != total) {
+        if (product + gst + codFee + codTax != total) {
             throw new VeloriaException(ResponseCode.BAD_REQUEST,
                     "Refund " + refund.getUuid() + " does not add up: product " + product
-                    + " plus GST " + gst + " paise is not the " + total + " paise refunded. "
+                    + ", GST " + gst + ", COD charge " + codFee + " and COD tax " + codTax
+                    + " paise is not the " + total + " paise refunded. "
                     + "An entry that does not reconcile to the money is refused.");
         }
 
@@ -433,12 +436,60 @@ public class AccountingPostingService {
         List<JournalService.Posting> p = new ArrayList<>();
         if (product > 0) p.add(debit(SALES, product, "Refund of goods returned"));
         if (gst > 0) p.addAll(taxRefundPostings(order, gst, refund));
+
+        // The handling charge comes back out of Other Income, not out of Sales, and
+        // its tax out of whichever head the charge itself was taxed under — read
+        // from the order's own COD snapshot rather than from the product's. They are
+        // separate supplies, and a credit note has to reverse them separately.
+        if (codFee > 0) {
+            p.add(debit(OTHER_INCOME, codFee, "Refund of the COD handling charge"));
+        }
+        if (codTax > 0) {
+            p.addAll(codTaxRefundPostings(order, codTax, refund));
+        }
+
         p.add(credit(BANK, total, "Refunded to the customer"));
 
         return journal.post(new JournalService.Draft(
                 dateOf(refund.getCompletedAt() != null ? refund.getCompletedAt() : refund.getCreatedAt()),
                 refund.getOrderCode(), REFUND, refund.getId(),
                 "Refund on " + refund.getOrderCode(), p).deferrable());
+    }
+
+    /**
+     * Splits a refunded COD tax amount across the heads the charge was taxed under.
+     *
+     * <p>Read from the order's COD snapshot, never from the product's: the charge is
+     * a different supply under a different service code, and it can be inter-state
+     * while the goods are intra-state only if the two were taxed at different times,
+     * which the snapshot records and today's configuration does not.
+     */
+    private List<JournalService.Posting> codTaxRefundPostings(CustomerOrderEntity order, long codTax,
+                                                              PaymentRefundEntity refund)
+            throws VeloriaException {
+        long cgst = nz(order.getCodFeeCgstPaise());
+        long sgst = nz(order.getCodFeeSgstPaise());
+        long igst = nz(order.getCodFeeIgstPaise());
+        long charged = cgst + sgst + igst;
+
+        if (charged == 0) {
+            throw new VeloriaException(ResponseCode.BAD_REQUEST,
+                    "Refund " + refund.getUuid() + " gives back " + codTax + " paise of COD tax, but "
+                    + "order " + refund.getOrderCode() + " has no COD tax recorded against it. "
+                    + "Refused rather than credited to a head that was never charged.");
+        }
+
+        List<JournalService.Posting> p = new ArrayList<>();
+        if (igst > 0) {
+            p.add(debit(OUTPUT_IGST, codTax, "Refund of output IGST on the COD charge"));
+            return p;
+        }
+        // Intra-state: split in the proportion charged, with the second head taking
+        // the remainder so the postings total the refund exactly.
+        long cgstShare = codTax * cgst / charged;
+        p.add(debit(OUTPUT_CGST, cgstShare, "Refund of output CGST on the COD charge"));
+        p.add(debit(OUTPUT_SGST, codTax - cgstShare, "Refund of output SGST on the COD charge"));
+        return p;
     }
 
     /**

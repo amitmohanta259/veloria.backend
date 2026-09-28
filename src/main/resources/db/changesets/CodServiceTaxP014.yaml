@@ -1,0 +1,114 @@
+databaseChangeLog:
+
+  # ── The COD handling charge is a configured service, not a literal ─────────
+  #
+  # Everything about the charge that a business or a tax adviser decides moves
+  # into gst_configuration, which already exists for exactly this — its own
+  # comment says it holds "anything that is a business or statutory decision
+  # rather than arithmetic", and SHIPPING_TAX_TREATMENT is the precedent.
+  #
+  # No new table, and no new tax engine: the RATE itself lives in gst_tax_rules
+  # like every other rate, looked up by the service code below. That master is
+  # already generic — its code column has no foreign key to the goods HSN master,
+  # and it already honours EXACT/PREFIX matching, effective dates, an active flag
+  # and priority precedence.
+  #
+  # TWO KEYS ARE DELIBERATELY SEEDED EMPTY.
+  #
+  #   COD_FEE_SAC        which service code the charge is supplied under
+  #   COD_FEE_TAX_BASIS  whether ₹50 includes the tax or has it added
+  #
+  # Both are unapproved tax determinations. An empty value is the honest
+  # representation of "not decided"; a default would quietly become policy, and
+  # the second one changes what the customer is billed. Until an administrator
+  # sets them under Admin → GST, cash on delivery is refused rather than charged
+  # at a rate nobody approved.
+  - changeSet:
+      id: p014_cod_service_configuration
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              INSERT INTO gst_configuration
+                (organization_id, config_key, config_value, value_type, description,
+                 source_reference, effective_from, active, created_at)
+              SELECT 1, 'COD_ENABLED', 'true', 'BOOLEAN',
+                     'Whether cash on delivery is offered. Even when true, COD is refused '
+                     || 'unless COD_FEE_SAC and COD_FEE_TAX_BASIS are configured and an active '
+                     || 'GST rule exists for the service code.',
+                     NULL, DATE '2017-07-01', true, now()
+              WHERE NOT EXISTS (SELECT 1 FROM gst_configuration
+                                 WHERE config_key = 'COD_ENABLED' AND organization_id = 1)
+            rollback: DELETE FROM gst_configuration WHERE config_key = 'COD_ENABLED'
+        - sql:
+            sql: >
+              INSERT INTO gst_configuration
+                (organization_id, config_key, config_value, value_type, description,
+                 source_reference, effective_from, active, created_at)
+              SELECT 1, 'COD_FEE_PAISE', '5000', 'LONG',
+                     'The cash-on-delivery handling charge, in paise. Approved at ₹50.',
+                     'Approved business decision, P0-11', DATE '2017-07-01', true, now()
+              WHERE NOT EXISTS (SELECT 1 FROM gst_configuration
+                                 WHERE config_key = 'COD_FEE_PAISE' AND organization_id = 1)
+            rollback: DELETE FROM gst_configuration WHERE config_key = 'COD_FEE_PAISE'
+        - sql:
+            sql: >
+              INSERT INTO gst_configuration
+                (organization_id, config_key, config_value, value_type, description,
+                 source_reference, effective_from, active, created_at)
+              SELECT 1, 'COD_FEE_SAC', NULL, 'STRING',
+                     'PENDING TAX APPROVAL. The service accounting code the handling charge is '
+                     || 'supplied under. Its GST rate is then configured against this code in '
+                     || 'Admin -> GST -> rules (match type EXACT). Left empty on purpose: no SAC '
+                     || 'may be assumed, and no rate can be looked up without one.',
+                     NULL, DATE '2017-07-01', true, now()
+              WHERE NOT EXISTS (SELECT 1 FROM gst_configuration
+                                 WHERE config_key = 'COD_FEE_SAC' AND organization_id = 1)
+            rollback: DELETE FROM gst_configuration WHERE config_key = 'COD_FEE_SAC'
+        - sql:
+            sql: >
+              INSERT INTO gst_configuration
+                (organization_id, config_key, config_value, value_type, description,
+                 source_reference, effective_from, active, created_at)
+              SELECT 1, 'COD_FEE_TAX_BASIS', NULL, 'STRING',
+                     'PENDING TAX APPROVAL. EXCLUSIVE means the customer pays the charge plus GST '
+                     || 'on it; INCLUSIVE means the charge already contains the GST and the '
+                     || 'taxable value is carved out of it. The two give the customer a different '
+                     || 'bill, so there is no default.',
+                     NULL, DATE '2017-07-01', true, now()
+              WHERE NOT EXISTS (SELECT 1 FROM gst_configuration
+                                 WHERE config_key = 'COD_FEE_TAX_BASIS' AND organization_id = 1)
+            rollback: DELETE FROM gst_configuration WHERE config_key = 'COD_FEE_TAX_BASIS'
+        - sql:
+            sql: >
+              INSERT INTO gst_configuration
+                (organization_id, config_key, config_value, value_type, description,
+                 source_reference, effective_from, active, created_at)
+              SELECT 1, 'COD_FEE_REFUNDABLE', 'false', 'BOOLEAN',
+                     'Whether the handling charge is returned on a refund. False is the standing '
+                     || 'treatment, which the refund table has expressed since it was created by '
+                     || 'having no column for the charge. When set true, the charge and its output '
+                     || 'GST are both reversed.',
+                     'Approved business decision, P0-7', DATE '2017-07-01', true, now()
+              WHERE NOT EXISTS (SELECT 1 FROM gst_configuration
+                                 WHERE config_key = 'COD_FEE_REFUNDABLE' AND organization_id = 1)
+            rollback: DELETE FROM gst_configuration WHERE config_key = 'COD_FEE_REFUNDABLE'
+
+  # ── A refundable handling charge needs somewhere to be recorded ────────────
+  #
+  # Two columns, added only because the charge became configurably refundable.
+  # Its own heads rather than folded into the product and GST columns: it is a
+  # different supply under a different service code, and a credit note has to
+  # reverse it as one.
+  #
+  # Both default to 0, so every existing refund row keeps exactly the meaning it
+  # had — the charge was not refunded, which was the rule at the time.
+  - changeSet:
+      id: p014_payment_refund_cod_heads
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: payment_refund
+            columns:
+              - column: {name: cod_fee_refunded_paise, type: BIGINT, defaultValueNumeric: 0}
+              - column: {name: cod_tax_refunded_paise, type: BIGINT, defaultValueNumeric: 0}

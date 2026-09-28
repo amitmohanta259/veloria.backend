@@ -10,6 +10,7 @@ import com.app.master.service.core.response.ResponseCode;
 import com.app.master.service.repository.payment.PaymentAttemptRepository;
 import com.app.master.service.repository.payment.PaymentRefundRepository;
 import com.app.master.service.service.admin.AccountingPostingService;
+import com.app.master.service.service.admin.GstConfigurationService;
 import com.app.master.service.service.admin.ReturnProcessingService;
 import com.app.master.service.service.admin.impl.SalesOrderServiceImpl;
 import com.app.master.service.service.client.ClientBagService;
@@ -19,6 +20,7 @@ import com.app.master.service.service.payment.PaymentService;
 import com.app.master.service.service.payment.RazorpayGateway;
 import com.app.master.service.service.payment.RefundService;
 import com.app.master.service.support.AccountingResidue;
+import com.app.master.service.support.CodTestConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -104,12 +106,14 @@ class FinancialDecisionsPostgresTest {
     @Autowired private JdbcTemplate jdbc;
 
     private String buyerUuid;
+    private String buyerEmail;
     private String buyerToken;
     private UUID productUuid;
     private Long productId;
     private final List<String> orderCodes = new ArrayList<>();
     private final List<String> closedPeriods = new ArrayList<>();
     private boolean taxRuleSeeded;
+    private boolean codConfigured;
 
     // ── fixture ──────────────────────────────────────────────────────────────
 
@@ -117,6 +121,7 @@ class FinancialDecisionsPostgresTest {
     void seed() {
         buyerUuid = UUID.randomUUID().toString();
         String email = "fin-" + buyerUuid.substring(0, 8) + "@automation.veloria.test";
+        buyerEmail = email;
         jdbc.update("""
                 INSERT INTO users (uuid, first_name, last_name, email, phone, active, archive, created)
                 VALUES (?::uuid, 'Automation', 'Buyer', ?, '9000000000', true, false, now())
@@ -160,7 +165,15 @@ class FinancialDecisionsPostgresTest {
                       + "WHERE period = ?", period);
         }
         closedPeriods.clear();
-        ReflectionTestUtils.setField(codFeeTaxResolver, "sacCode", "");
+        // Restore the shipped configuration: the two tax decisions unset, which is
+        // the production state and what the next test must start from.
+        // One restore, shared with every other COD-using test. Doing it by hand here
+        // once missed COD_FEE_REFUNDABLE, which then leaked into the next test and
+        // made a non-refundable-charge assertion fail for no visible reason.
+        if (codConfigured) {
+            CodTestConfig.restore(jdbc);
+            codConfigured = false;
+        }
 
         // Every statement below is attempted, and a failure in one does not stop
         // the rest.
@@ -275,24 +288,49 @@ class FinancialDecisionsPostgresTest {
      * application does not hold.
      */
     private void configureCodFeeTax(int cgstBp, int sgstBp, int igstBp) {
-        jdbc.update("""
-                INSERT INTO gst_tax_rules (uuid, hsn_code, hsn_match_type, description,
-                                           cgst_rate_bp, sgst_rate_bp, igst_rate_bp, cess_rate_bp,
-                                           priority, effective_from, active, created)
-                VALUES (gen_random_uuid(), ?, 'EXACT', 'Automation COD handling charge',
-                        ?, ?, ?, 0, 900, DATE '2017-07-01', true, now())
-                """, TEST_SAC, cgstBp, sgstBp, igstBp);
+        // The shared helper owns this: it seeds the rule as a SAC-typed rule and sets
+        // the basis, and having one place to do that is why the code type and the
+        // basis cannot drift apart between test classes.
+        //
+        // EXCLUSIVE here, not the production INCLUSIVE, because the assertions in this
+        // class were written against a ₹50 taxable value plus ₹9 tax. The inclusive
+        // arithmetic has its own dedicated coverage in CodServiceTaxPostgresTest.
+        CodTestConfig.configure(jdbc, 5000L, cgstBp, sgstBp, igstBp,
+                GstConfigurationService.TAX_EXCLUSIVE);
         taxRuleSeeded = true;
-        ReflectionTestUtils.setField(codFeeTaxResolver, "sacCode", TEST_SAC);
+        codConfigured = true;
+    }
+
+    /**
+     * Sets one configuration value.
+     *
+     * <p>Updates in place rather than deleting and reinserting, so the row keeps the
+     * declared {@code value_type} and description the migration shipped. An earlier
+     * delete-and-insert version silently rewrote every type to STRING.
+     */
+    private void setCodConfig(String key, String value) {
+        int updated = jdbc.update("UPDATE gst_configuration SET config_value = ? "
+                               + "WHERE config_key = ? AND organization_id = 1", value, key);
+        if (updated == 0) {
+            jdbc.update("""
+                    INSERT INTO gst_configuration (organization_id, config_key, config_value, value_type,
+                                                   effective_from, active, created_at)
+                    VALUES (1, ?, ?, 'STRING', DATE '2017-07-01', true, now())
+                    """, key, value);
+        }
     }
 
     private String placeOrder() throws Exception {
+        return placeOrder(1);
+    }
+
+    private String placeOrder(int quantity) throws Exception {
         PlaceOrderRequest r = new PlaceOrderRequest();
         r.setDeliveryLocation("12 MG Road, Bengaluru, Karnataka 560001");
         r.setCurrency("INR");
         PlaceOrderRequest.OrderItemRequest item = new PlaceOrderRequest.OrderItemRequest();
         item.setProductUuid(productUuid);
-        item.setQuantity(1);
+        item.setQuantity(quantity);
         r.setItems(List.of(item));
 
         String code = orderService.placeOrder(buyerToken, r).getOrderCode();
@@ -360,14 +398,26 @@ class FinancialDecisionsPostgresTest {
                 """, Long.class, accountCode, sourceType, orderId, orderId, orderId);
     }
 
+    /** The whole-ledger balance on one account — debits less credits. */
+    private long accountBalance(String accountCode) {
+        return jdbc.queryForObject("""
+                SELECT COALESCE(SUM(debit_paise) - SUM(credit_paise), 0)
+                  FROM journal_entry_line WHERE account_code = ?
+                """, Long.class, accountCode);
+    }
+
     private Map<String, Object> orderRow(String code) {
         return jdbc.queryForMap("SELECT * FROM customer_order WHERE order_code = ?", code);
     }
 
     private long invoiceTotal(Long orderId) {
         return jdbc.queryForObject("""
+                -- The COD gross is taxable + tax, which is right under both tax bases.
+                -- Adding the FEE and the tax would double-count an inclusive charge,
+                -- overstating a ₹50 charge as ₹57.63 — the defect P0-13 fixed.
                 SELECT COALESCE(total_value,0) + COALESCE(shipping_value,0)
-                     + COALESCE(cod_fee_paise,0) + COALESCE(cod_fee_tax_paise,0)
+                     + COALESCE(NULLIF(cod_fee_taxable_paise,0), cod_fee_paise, 0)
+                     + COALESCE(cod_fee_tax_paise,0)
                   FROM customer_order WHERE id = ?
                 """, Long.class, orderId);
     }
@@ -406,6 +456,24 @@ class FinancialDecisionsPostgresTest {
     private Long verifyReturn(String orderCode) throws Exception {
         runAs(() -> returnProcessing.verify(orderCode, List.of(), "Automation verification",
                 false, null, "automation-admin"), "ADMIN_GST", "CREATE_CREDIT_NOTE");
+        return latestReturnId(orderCode);
+    }
+
+    /** Verifies a return of exactly {@code units}, leaving the rest returnable. */
+    private Long verifyReturn(String orderCode, int units) throws Exception {
+        Long orderItemId = jdbc.queryForObject("""
+                SELECT i.id FROM customer_order_item i
+                  JOIN customer_order o ON o.id = i.customer_order_id
+                 WHERE o.order_code = ? AND i.archive = false ORDER BY i.id LIMIT 1
+                """, Long.class, orderCode);
+        runAs(() -> returnProcessing.verify(orderCode,
+                        List.of(new ReturnProcessingService.ReturnLine(orderItemId, units, "PRODUCT_OK")),
+                        "Automation partial verification", false, null, "automation-admin"),
+                "ADMIN_GST", "CREATE_CREDIT_NOTE");
+        return latestReturnId(orderCode);
+    }
+
+    private Long latestReturnId(String orderCode) {
         return jdbc.queryForObject(
                 "SELECT id FROM order_return_request WHERE order_code = ? ORDER BY id DESC LIMIT 1",
                 Long.class, orderCode);
@@ -548,24 +616,36 @@ class FinancialDecisionsPostgresTest {
     @Test
     @DisplayName("with no service code configured the charge still stands but is not recognised")
     void unresolvedCodFeeTaxIsNotPosted() throws Exception {
-        // The production state: no code configured, so the master cannot price it.
+        // Explicitly unconfigured. Since P0-13 the shipped configuration DOES carry a
+        // SAC and a basis, so a test about the unconfigured state has to create it
+        // rather than rely on the default.
+        jdbc.update("UPDATE gst_configuration SET config_value = NULL "
+                  + "WHERE config_key = 'COD_FEE_SAC' AND organization_id = 1");
+        codConfigured = true;   // so the teardown restores the shipped values
         String code = placeOrder();
         Long orderId = orderIdOf(code);
         long saleOnly = outstandingAr(orderId);
 
-        paymentService.initiate(buyerToken, code, "COD", "cod-" + UUID.randomUUID());
+        // P0-14 changed this from "charge it untaxed and record why" to a refusal.
+        // Charging a customer for a taxable service while declaring no tax on it is
+        // a misdeclaration; being able to explain it afterwards does not make it
+        // one the business may make. So COD is withdrawn until it is configured.
+        VeloriaException refused = assertThrows(VeloriaException.class,
+                () -> paymentService.initiate(buyerToken, code, "COD", "cod-" + UUID.randomUUID()));
+        assertTrue(refused.getMessage().contains("tax configuration is incomplete"),
+                refused.getMessage());
+        assertTrue(refused.getMessage().contains("service accounting code"),
+                "the message must say which piece is missing: " + refused.getMessage());
 
         Map<String, Object> order = orderRow(code);
-        assertEquals(5000L, ((Number) order.get("cod_fee_paise")).longValue(),
-                "the approved charge is still charged");
-        assertEquals("NOT_CONFIGURED", order.get("cod_fee_tax_resolution"),
-                "and the reason its tax is unknown is recorded, not silently zero");
+        assertEquals(0L, ((Number) order.get("cod_fee_paise")).longValue(),
+                "no charge is written when it cannot be taxed");
         assertNull(order.get("cod_fee_tax_rate_bp"),
                 "a null rate is not a 0% rate — that distinction is the point");
 
         assertEquals(0, journals("COD_FEE", orderId),
                 "nothing is posted at a rate nobody approved");
-        assertEquals(saleOnly, outstandingAr(orderId), "so the receivable is unchanged");
+        assertEquals(saleOnly, outstandingAr(orderId), "and the receivable is unchanged");
     }
 
     @Test
@@ -588,6 +668,77 @@ class FinancialDecisionsPostgresTest {
         accounting.backfill();
 
         assertEquals(0, journals("COD_FEE", orderId), "a cancelled order earns no handling income");
+    }
+
+    /**
+     * The production configuration, all the way from charge to cleared receivable.
+     *
+     * <p>Every other COD test in this class runs on the EXCLUSIVE basis, because their
+     * assertions were written against ₹50 taxable plus ₹9 tax. This one runs on
+     * <b>INCLUSIVE</b>, which is what production is configured to, and it is the case
+     * where the arithmetic is easiest to get wrong: the tax is inside the charge, so
+     * anything that adds the fee and the tax together overstates the bill.
+     *
+     * <p>All three figures are worked out here rather than read back:
+     * 5000 × 10000 / 11800 = 4237.29 → 4237, and 5000 − 4237 = 763.
+     */
+    @Test
+    @DisplayName("an inclusive ₹50 charge is billed as ₹50, and clears the receivable exactly")
+    void inclusiveCodChargeBillsAndClearsExactly() throws Exception {
+        CodTestConfig.configure(jdbc, 5000L, 900, 900, 1800,
+                GstConfigurationService.TAX_INCLUSIVE);
+        taxRuleSeeded = true;
+        codConfigured = true;
+
+        String code = placeOrder();
+        Long orderId = orderIdOf(code);
+        long saleOnlyAr = outstandingAr(orderId);
+
+        paymentService.initiate(buyerToken, code, "COD", "cod-" + UUID.randomUUID());
+
+        // The snapshot carries the carve-out, and the two parts sum to the charge.
+        Map<String, Object> order = orderRow(code);
+        assertEquals(5000L, ((Number) order.get("cod_fee_paise")).longValue(), "₹50 charged");
+        assertEquals(4237L, ((Number) order.get("cod_fee_taxable_paise")).longValue(), "₹42.37 taxable");
+        assertEquals(763L, ((Number) order.get("cod_fee_tax_paise")).longValue(), "₹7.63 GST");
+        assertEquals(5000L,
+                ((Number) order.get("cod_fee_taxable_paise")).longValue()
+                        + ((Number) order.get("cod_fee_tax_paise")).longValue(),
+                "and they sum to the charge, to the paisa");
+
+        // The receivable grows by ₹50 — the charge — not by ₹57.63.
+        assertEquals(saleOnlyAr + 5000L, outstandingAr(orderId),
+                "an inclusive charge raises a receivable of the charge, tax included");
+        assertEquals(invoiceTotal(orderId), outstandingAr(orderId),
+                "AR before delivery equals the invoice total");
+
+        // The customer is asked for exactly that.
+        long payable = attemptRepo.findByCustomerOrderIdOrderBySequenceNoAscIdAsc(orderId)
+                .get(0).getAmountPaise();
+        assertEquals(invoiceTotal(orderId), payable, "and is asked for the invoice, no more");
+
+        // Income and output tax are separated: ₹42.37 to Other Income, ₹7.63 to tax.
+        assertEquals(-4237L, accountMovement(orderId, "COD_FEE", "4090"),
+                "only the taxable value is income");
+        long outputTax = accountMovement(orderId, "COD_FEE", "2100")
+                + accountMovement(orderId, "COD_FEE", "2110")
+                + accountMovement(orderId, "COD_FEE", "2120");
+        assertEquals(-763L, outputTax, "and the rest is output tax, not income");
+        assertEquals(5000L, accountMovement(orderId, "COD_FEE", "1100"),
+                "with the whole charge receivable");
+
+        // Collected at the door, in full, with no capping.
+        runAs(() -> {
+            salesOrderService.updateOrderStatus(code, "PACKED");
+            salesOrderService.updateOrderStatus(code, "IN_TRANSIT");
+            salesOrderService.updateOrderStatus(code, "OUT_FOR_DELIVERY");
+            salesOrderService.updateOrderStatus(code, "DELIVERED");
+        }, "ADMIN_GST");
+
+        assertEquals(1, collectionJournals(orderId));
+        assertEquals(-payable, accountMovement(orderId, "PAYMENT_COLLECTION", "1100"),
+                "the whole outstanding amount is applied against the receivable");
+        assertEquals(0, outstandingAr(orderId), "AR after delivery is zero");
     }
 
     // ── gateway fee: recorded, not posted ────────────────────────────────────
@@ -876,7 +1027,85 @@ class FinancialDecisionsPostgresTest {
                 "the charge and its tax were allocated to the other head");
         assertEquals(paid.getAmountPaise() - 5900L, e.amountPaise(),
                 "and are excluded from the refund: the charge is non-refundable");
+        assertEquals(0L, e.codFeePaise(), "no charge is given back");
+        assertEquals(0L, e.codTaxPaise(), "and no tax on it is reversed");
         assertEquals(0L, paid.getTransportAllocatedPaise(), "nothing was charged for transport");
+    }
+
+    @Test
+    @DisplayName("configured refundable, the charge and its output tax both come back")
+    void codFeeIsRefundedWhenConfiguredRefundable() throws Exception {
+        configureCodFeeTax(900, 900, 1800);
+        setCodConfig(GstConfigurationService.COD_FEE_REFUNDABLE, "true");
+        stubGateway();
+        String code = placeOrder();
+        Long orderId = orderIdOf(code);
+
+        jdbc.update("UPDATE customer_order SET cod_fee_paise=5000, cod_fee_taxable_paise=5000, "
+                  + "cod_fee_cgst_paise=450, cod_fee_sgst_paise=450, cod_fee_tax_paise=900, "
+                  + "cod_fee_tax_rate_bp=1800, cod_fee_sac_code=?, cod_fee_tax_resolution='RULE_APPLIED' "
+                  + "WHERE id = ?", TEST_SAC, orderId);
+        accounting.backfill();
+        PaymentAttemptEntity paid = captureOnline(code, "ONLINE_FULL", null);
+        Long returnId = verifyReturn(code);
+
+        RefundService.Eligibility e = refundService.eligibilityFor(returnId);
+
+        // The charge (5000) and its tax (900) are now part of the refund, on top of
+        // the product and product GST the non-refundable case gave back.
+        assertEquals(5000L, e.codFeePaise(), "the charge comes back");
+        assertEquals(900L, e.codTaxPaise(), "and so does the output tax collected on it");
+        assertEquals(paid.getAmountPaise(), e.amountPaise(),
+                "so the whole captured amount is refundable");
+
+        PaymentRefundEntity refund = runAsReturning(
+                () -> refundService.issue(returnId, "r-" + UUID.randomUUID(), "admin"), "ADMIN_GST");
+        assertEquals(RefundService.REFUNDED, refund.getStatus());
+        assertEquals(5000L, refund.getCodFeeRefundedPaise(), "recorded on its own head");
+        assertEquals(900L, refund.getCodTaxRefundedPaise());
+
+        // The charge reverses out of Other Income, not out of Sales — they are
+        // different supplies and a credit note has to distinguish them.
+        assertEquals(5000L, accountMovement(orderId, "REFUND", "4090"),
+                "Other Income is debited by the charge");
+        assertEquals(900L,
+                accountMovement(orderId, "REFUND", "2100") + accountMovement(orderId, "REFUND", "2110"),
+                "and the output tax heads by the tax on it");
+        assertEquals(-refund.getAmountPaise(), accountMovement(orderId, "REFUND", "1020"),
+                "the bank pays out the whole refund");
+    }
+
+    @Test
+    @DisplayName("a refundable charge is given back once, not once per payment")
+    void codFeeIsRefundedOnlyOnce() throws Exception {
+        configureCodFeeTax(900, 900, 1800);
+        setCodConfig(GstConfigurationService.COD_FEE_REFUNDABLE, "true");
+        stubGateway();
+        String code = placeOrder(2);
+        Long orderId = orderIdOf(code);
+
+        jdbc.update("UPDATE customer_order SET cod_fee_paise=5000, cod_fee_taxable_paise=5000, "
+                  + "cod_fee_cgst_paise=450, cod_fee_sgst_paise=450, cod_fee_tax_paise=900, "
+                  + "cod_fee_tax_rate_bp=1800, cod_fee_sac_code=?, cod_fee_tax_resolution='RULE_APPLIED' "
+                  + "WHERE id = ?", TEST_SAC, orderId);
+        accounting.backfill();
+        captureOnline(code, "ONLINE_PARTIAL", null);
+        // One of the two units, so the order still has something returnable.
+        Long firstReturn = verifyReturn(code, 1);
+
+        RefundService.Eligibility first = refundService.eligibilityFor(firstReturn);
+        assertEquals(5000L, first.codFeePaise(), "the first refund carries the charge");
+        runAsReturning(() -> refundService.issue(firstReturn, "r-" + UUID.randomUUID(), "admin"),
+                "ADMIN_GST");
+
+        // A second payment and the remaining unit returned.
+        captureOnline(code, "ONLINE_PARTIAL", null);
+        Long secondReturn = verifyReturn(code, 1);
+        RefundService.Eligibility second = refundService.eligibilityFor(secondReturn);
+
+        assertEquals(0L, second.codFeePaise(),
+                "the charge belongs to the order and has already been returned");
+        assertEquals(0L, second.codTaxPaise(), "and so has its tax");
     }
 
     @Test
@@ -926,9 +1155,16 @@ class FinancialDecisionsPostgresTest {
         RefundService.Eligibility e = refundService.eligibilityFor(returnId);
 
         assertFalse(e.eligible(), "cash has no electronic destination");
-        assertTrue(e.reason().contains("no refund destination"), e.reason());
-        assertTrue(e.reason().contains("approved decision"),
-                "and the reason must name it as an open decision: " + e.reason());
+        // The reason must name the missing DECISION and must not claim one has been
+        // made. The register records D-COD-REFUND as UNDECIDED, so a message saying
+        // store credit is "the approved refund destination" tells the customer — and
+        // the next developer — something untrue.
+        assertTrue(e.reason().contains("no refund destination has been approved"),
+                "the open decision must be named: " + e.reason());
+        assertFalse(e.reason().toLowerCase().contains("approved refund destination is"),
+                "no destination may be presented as approved: " + e.reason());
+        assertTrue(e.reason().contains("amount owed stands"),
+                "and the debt must not be denied along with the payout: " + e.reason());
         assertEquals(0, refundJournals(orderIdOf(code)));
     }
 
@@ -1038,6 +1274,136 @@ class FinancialDecisionsPostgresTest {
                 "a refusal must say the refund already exists: " + r));
     }
 
+    /**
+     * The same twelve-thread pressure on a refund that has nowhere to go.
+     *
+     * <p>{@link #concurrentRefundsProduceOne} covers the online case, where exactly
+     * one refund must win. A cash-on-delivery refund has no approved destination, so
+     * the correct answer is that nobody wins — and the thing to prove is that
+     * concurrency cannot turn twelve refusals into one accidental payout. A race that
+     * slipped past the destination check would send cash somewhere nobody chose.
+     */
+    @Test
+    @DisplayName("12 concurrent COD refund attempts all refuse, and post nothing")
+    void concurrentCodRefundAttemptsAllRefuse() throws Exception {
+        configureCodFeeTax(900, 900, 1800);
+        String code = placeOrder();
+        Long orderId = orderIdOf(code);
+        paymentService.initiate(buyerToken, code, "COD", "cod-" + UUID.randomUUID());
+        runAs(() -> {
+            salesOrderService.updateOrderStatus(code, "PACKED");
+            salesOrderService.updateOrderStatus(code, "IN_TRANSIT");
+            salesOrderService.updateOrderStatus(code, "OUT_FOR_DELIVERY");
+            salesOrderService.updateOrderStatus(code, "DELIVERED");
+        }, "ADMIN_GST");
+        Long returnId = verifyReturn(code);
+        long arBefore = accountBalance("1100");
+
+        final int threads = 12;
+        SecurityContext admin = contextFor("ADMIN_GST");
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(threads);
+        List<String> refusals = Collections.synchronizedList(new ArrayList<>());
+        List<UUID> issued = Collections.synchronizedList(new ArrayList<>());
+        try {
+            for (int i = 0; i < threads; i++) {
+                pool.submit(() -> {
+                    SecurityContextHolder.setContext(admin);
+                    try {
+                        start.await();
+                        issued.add(refundService.issue(
+                                returnId, "r-" + UUID.randomUUID(), "admin").getUuid());
+                    } catch (Exception e) {
+                        refusals.add(String.valueOf(e.getMessage()));
+                    } finally {
+                        SecurityContextHolder.clearContext();
+                        done.countDown();
+                    }
+                });
+            }
+            start.countDown();
+            assertTrue(done.await(180, TimeUnit.SECONDS), "every worker must finish");
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertEquals(threads, refusals.size(), "all twelve must be refused: issued=" + issued);
+        assertTrue(issued.isEmpty(), "no refund may be issued to an unapproved destination");
+        refusals.forEach(r -> assertTrue(r.contains("no refund destination has been approved"),
+                "and each refusal names the open decision: " + r));
+
+        assertEquals(0, refundRepo.findByCustomerOrderIdOrderByIdAsc(orderId).size(),
+                "not even a refund row, since none could be sent");
+        assertEquals(0, refundJournals(orderId), "and no accounting effect at all");
+        assertEquals(arBefore, accountBalance("1100"),
+                "the receivable is untouched by twelve refused attempts");
+    }
+
+    /**
+     * Twelve simultaneous quotes must agree with each other.
+     *
+     * <p>The COD charge and the product tax are both read from configuration and the
+     * tax master on every call. Concurrent readers must not see a torn view — half a
+     * configuration change, or a rate from one row against a basis from another —
+     * because the figure a shopper is quoted becomes the figure they are billed.
+     */
+    @Test
+    @DisplayName("12 concurrent cart quotes all return identical figures")
+    void concurrentQuotesAgree() throws Exception {
+        // The production basis, deliberately: the figures twelve readers must agree on
+        // are the ones a real shopper is quoted. The rest of this class uses EXCLUSIVE
+        // for its ₹50 + ₹9 arithmetic (see configureCodFeeTax).
+        CodTestConfig.configure(jdbc, 5000L, 900, 900, 1800,
+                GstConfigurationService.TAX_INCLUSIVE);
+        taxRuleSeeded = true;
+        codConfigured = true;
+        jdbc.update("""
+                INSERT INTO customer_bag (uuid, user_id, product_uuid, quantity, added_at, archive)
+                VALUES (gen_random_uuid(), ?, ?::uuid, 1, now(), false)
+                """, buyerUuid, productUuid.toString());
+
+        final int threads = 12;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(threads);
+        List<String> quotes = Collections.synchronizedList(new ArrayList<>());
+        List<String> errors = Collections.synchronizedList(new ArrayList<>());
+        try {
+            for (int i = 0; i < threads; i++) {
+                pool.submit(() -> {
+                    try {
+                        start.await();
+                        var p = bagService.getGstPreview(buyerToken);
+                        // One string per answer: comparing whole quotes catches a
+                        // mismatch between any two fields, not just a wrong total.
+                        quotes.add(p.gstResolved() + "|" + p.supplyType() + "|" + p.subtotalPaise()
+                                + "|" + p.totalGst() + "|" + p.grandTotal()
+                                + "|" + p.codCharge().available() + "|" + p.codCharge().taxablePaise()
+                                + "|" + p.codCharge().taxPaise() + "|" + p.codCharge().taxRateBp()
+                                + "|" + p.codCharge().totalPaise() + "|" + p.codCharge().taxResolution());
+                    } catch (Exception e) {
+                        errors.add(String.valueOf(e));
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            start.countDown();
+            assertTrue(done.await(120, TimeUnit.SECONDS), "every worker must finish");
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertTrue(errors.isEmpty(), "a quote must never fail under concurrency: " + errors);
+        assertEquals(threads, quotes.size());
+        assertEquals(1, Set.copyOf(quotes).size(),
+                "every concurrent quote must be the same quote: " + Set.copyOf(quotes));
+        // And it is the approved one, so the test fails if they agree on nonsense.
+        assertTrue(quotes.get(0).contains("|true|4237|763|1800|"),
+                "the agreed quote must be the approved ₹42.37 + ₹7.63: " + quotes.get(0));
+    }
+
     @Test
     @DisplayName("a gateway refund failure posts nothing: the books say no money moved")
     void gatewayFailureIsNotAccountedFor() throws Exception {
@@ -1137,7 +1503,10 @@ class FinancialDecisionsPostgresTest {
     @Test
     @DisplayName("with the rate unconfigured the quote says so, rather than reporting zero tax")
     void codQuoteReportsAnUnresolvedRate() throws Exception {
-        // The production state: no service code configured.
+        // Explicitly unconfigured; see unresolvedCodFeeTaxIsNotPosted.
+        jdbc.update("UPDATE gst_configuration SET config_value = NULL "
+                  + "WHERE config_key = 'COD_FEE_SAC' AND organization_id = 1");
+        codConfigured = true;
         jdbc.update("""
                 INSERT INTO customer_bag (uuid, user_id, product_uuid, quantity, added_at, archive)
                 VALUES (gen_random_uuid(), ?, ?::uuid, 1, now(), false)
@@ -1145,11 +1514,119 @@ class FinancialDecisionsPostgresTest {
 
         var quote = bagService.getGstPreview(buyerToken).codCharge();
 
-        assertEquals(5000L, quote.feePaise(), "the charge is still approved and still quoted");
-        assertEquals("NOT_CONFIGURED", quote.taxResolution(),
-                "and the client is told the tax is unknown, not that it is zero");
+        // The quote does not throw — a checkout screen must be able to say COD is
+        // unavailable without the whole cart preview failing — but it reports the
+        // charge as unavailable, and the client keys off that rather than off the
+        // amounts.
+        assertFalse(quote.available(),
+                "an unpriceable charge must not be presented as a priceable one");
+        assertEquals("NO_SAC_CONFIGURED", quote.taxResolution(),
+                "and the reason is diagnosable, not a bare refusal");
         assertNull(quote.taxRateBp(), "a null rate is not a 0% rate");
         assertEquals(0L, quote.taxPaise());
+    }
+
+    // ── the addressless product GST preview ──
+
+    /**
+     * A shopper who has not given a delivery address yet gets an answer, not a 500.
+     *
+     * <p>This is the product GST path, not the COD one. The engine refuses to choose
+     * between CGST+SGST and IGST without a place of supply, and rightly so — but it
+     * refuses by throwing {@link IllegalStateException}, which the preview passed
+     * straight to the shopper as an internal error. Opening the bag before saving an
+     * address is the ordinary first visit, not an exceptional case.
+     *
+     * <p>What it must NOT become is a zero. "The tax is not determinable" and "this
+     * supply is taxed at 0%" are different statements, and a client that cannot tell
+     * them apart will show a tax-free total on a taxable order. So the amounts come
+     * back null and {@code gstResolved} is false.
+     */
+    @Test
+    @DisplayName("a shopper with no delivery address gets an unresolved GST preview, not a 500")
+    void addresslessProductGstPreviewDoesNot500() throws Exception {
+        jdbc.update("DELETE FROM user_address WHERE user_id = ?", buyerUuid);
+        jdbc.update("""
+                INSERT INTO customer_bag (uuid, user_id, product_uuid, quantity, added_at, archive)
+                VALUES (gen_random_uuid(), ?, ?::uuid, 2, now(), false)
+                """, buyerUuid, productUuid.toString());
+
+        // No throw is the first assertion: this is what used to produce the 500. The
+        // call itself failing is the regression, so it is not wrapped.
+        var preview = bagService.getGstPreview(buyerToken);
+
+        assertFalse(preview.gstResolved(), "with no address the tax cannot be determined");
+        assertEquals("NO_PLACE_OF_SUPPLY", preview.taxResolution(),
+                "and the reason must be diagnosable, not a bare absence");
+        assertNull(preview.supplyType(), "neither intra- nor inter-state is known");
+        assertNull(preview.buyerStateCode());
+
+        // Null, not zero. Each of these as 0 would read as a genuine 0% rate.
+        assertNull(preview.cgstAmount(), "an undetermined tax is not ₹0 of CGST");
+        assertNull(preview.sgstAmount(), "an undetermined tax is not ₹0 of SGST");
+        assertNull(preview.igstAmount(), "an undetermined tax is not ₹0 of IGST");
+        assertNull(preview.totalGst(), "an undetermined tax is not ₹0 of tax");
+        assertNull(preview.grandTotal(), "and a total that includes it is not known either");
+
+        // The money that does not depend on tax is still reported, because the
+        // shopper's bag has to render.
+        assertEquals(2_000_000L, preview.subtotalPaise(), "2 × ₹10,000 is price data, not tax");
+        assertEquals(1, preview.items().size());
+        var line = preview.items().get(0);
+        assertEquals(2, line.quantity());
+        assertEquals(2_000_000L, line.taxableValuePaise());
+        assertEquals("6211", line.hsnCode(), "the product is classified; its tax is not determinable");
+        assertNull(line.cgstRateBp(), "a null rate is not a 0% rate");
+        assertNull(line.igstRateBp());
+        assertNull(line.totalTax());
+
+        // COD is quoted as unavailable for the same reason, through its own resolver.
+        assertNotNull(preview.codCharge());
+        assertFalse(preview.codCharge().available(),
+                "the charge cannot be priced without a place of supply either");
+        assertEquals("NO_PLACE_OF_SUPPLY", preview.codCharge().taxResolution());
+
+        // And nothing was created by asking.
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM customer_order WHERE customer_email = ?", Integer.class, buyerEmail),
+                "a preview must not create an order");
+        assertEquals(0, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM payment_attempt pa
+                 JOIN customer_order o ON o.id = pa.customer_order_id
+                WHERE o.customer_email = ?
+                """, Integer.class, buyerEmail), "nor a payment attempt");
+        assertEquals(0, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM journal_entry
+                WHERE source_type IN ('SALE', 'COD_FEE') AND created_at > now() - interval '5 minutes'
+                """, Integer.class), "nor a journal");
+    }
+
+    /**
+     * The preview's tolerance must not have leaked into placing an order.
+     *
+     * <p>A preview may say "not yet determinable". A checkout may not quietly do the
+     * same for a COD charge it is about to bill, and this is the guarantee P0-13
+     * established — asserted here again from the other side, so a future change that
+     * relaxes the order path to make a preview simpler fails.
+     */
+    @Test
+    @DisplayName("the preview tolerating a missing address does not make checkout tolerate one")
+    void checkoutStillRequiresAPlaceOfSupply() throws Exception {
+        configureCodFeeTax(900, 900, 1800);
+        String code = placeOrder();
+        jdbc.update("UPDATE customer_order SET buyer_state_code = NULL, place_of_supply = NULL "
+                  + "WHERE order_code = ?", code);
+
+        VeloriaException e = assertThrows(VeloriaException.class,
+                () -> paymentService.initiate(buyerToken, code, "COD", "cod-" + UUID.randomUUID()),
+                "a COD charge may not be billed without a place of supply");
+        assertEquals(ResponseCode.BAD_REQUEST, e.getErrorCode(),
+                "and it stays a validation error, never a 500: " + e.getMessage());
+        assertEquals(0, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM journal_entry
+                WHERE source_type = 'COD_FEE' AND CAST(source_id AS TEXT) = ?
+                """, Integer.class, String.valueOf(orderIdOf(code))),
+                "and nothing is posted for a charge that was refused");
     }
 
     // ── transportation: a non-zero snapshot flows through, with no pricing ──

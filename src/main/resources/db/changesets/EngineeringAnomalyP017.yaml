@@ -1,0 +1,244 @@
+databaseChangeLog:
+
+  # ── Engineering monitoring tables ─────────────────────────────────────────
+  #
+  # These are MONITORING records, not business records, and they are the only
+  # tables the anomaly scanner may write. Nothing here carries a foreign key into
+  # a business table: a finding points at an order by its code, not by a
+  # reference that could cascade, so deleting monitoring history can never touch
+  # a business row and a business row can never be locked by a scan.
+  #
+  # Money stays in integer paise, as everywhere else in this schema. Timestamps
+  # are TIMESTAMPTZ because a scan's duration is compared across instances.
+
+  # One manual scan execution. Created QUEUED by the run endpoint, advanced by
+  # the scan itself, and never deleted automatically (retention is UNDECIDED —
+  # see docs/p0-17-engineering-dashboard-local-provider.md §18).
+  - changeSet:
+      id: p017_engineering_anomaly_scan
+      author: veloria
+      changes:
+        - createTable:
+            tableName: engineering_anomaly_scan
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints: {primaryKey: true, nullable: false}
+              - column: {name: uuid, type: UUID, constraints: {nullable: false}}
+              # The human-facing identifier, SCAN-YYYYMMDD-NNNN, following the
+              # journal_number / order_code convention: a readable number under a
+              # unique constraint beside the surrogate key.
+              - column: {name: scan_number, type: VARCHAR(40), constraints: {nullable: false}}
+              # Who pressed the button. No anonymous execution (§53).
+              - column: {name: triggered_by, type: VARCHAR(255), constraints: {nullable: false}}
+              - column: {name: requested_at, type: TIMESTAMPTZ, constraints: {nullable: false}}
+              - column: {name: started_at, type: TIMESTAMPTZ}
+              - column: {name: completed_at, type: TIMESTAMPTZ}
+              # QUEUED | RUNNING | COMPLETED | PARTIAL | FAILED
+              - column: {name: status, type: VARCHAR(16), constraints: {nullable: false}}
+              # The immutable scope, captured at creation. The running scan reads
+              # these columns, never the request — so changing a dashboard filter
+              # mid-scan cannot alter what is being scanned (§8.5).
+              - column: {name: scope_from, type: TIMESTAMPTZ}
+              - column: {name: scope_to, type: TIMESTAMPTZ}
+              - column: {name: scope_transaction_id, type: VARCHAR(64)}
+              - column: {name: scope_product_id, type: VARCHAR(64)}
+              - column: {name: domains, type: VARCHAR(400)}
+              - column: {name: rules_executed, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: rules_failed, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: transactions_scanned, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: anomalies_found, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: critical_count, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: high_count, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: medium_count, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: low_count, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: info_count, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: failure_reason, type: TEXT}
+              - column: {name: created, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: {nullable: false}}
+              - column: {name: modified, type: TIMESTAMPTZ}
+        - addUniqueConstraint:
+            tableName: engineering_anomaly_scan
+            columnNames: scan_number
+            constraintName: uq_eng_scan_number
+        - addUniqueConstraint:
+            tableName: engineering_anomaly_scan
+            columnNames: uuid
+            constraintName: uq_eng_scan_uuid
+        - sql:
+            sql: >
+              CREATE INDEX IF NOT EXISTS ix_eng_scan_status_requested
+              ON engineering_anomaly_scan (status, requested_at DESC)
+            rollback: DROP INDEX IF EXISTS ix_eng_scan_status_requested
+
+  # One anomaly. The table and column that hold the anomalous data are stored
+  # ENCRYPTED — see §18 of the spec and the crypto package. Everything needed to
+  # find, filter and explain a finding stays plaintext, which is what keeps the
+  # list queryable without decrypting anything.
+  - changeSet:
+      id: p017_engineering_anomaly_finding
+      author: veloria
+      changes:
+        - createTable:
+            tableName: engineering_anomaly_finding
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints: {primaryKey: true, nullable: false}
+              - column: {name: uuid, type: UUID, constraints: {nullable: false}}
+              - column:
+                  name: scan_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                    references: engineering_anomaly_scan(id)
+                    foreignKeyName: fk_eng_finding_scan
+              # Deterministic, over non-sensitive identifiers only. Deliberately
+              # NOT over the encrypted values, so the fingerprint cannot leak a
+              # schema name by collision or comparison (§50).
+              - column: {name: anomaly_fingerprint, type: VARCHAR(80), constraints: {nullable: false}}
+              # CRITICAL | HIGH | MEDIUM | LOW | INFO
+              - column: {name: severity, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: domain, type: VARCHAR(32), constraints: {nullable: false}}
+              - column: {name: rule_id, type: VARCHAR(80), constraints: {nullable: false}}
+              - column: {name: entity_type, type: VARCHAR(48), constraints: {nullable: false}}
+              - column: {name: entity_id, type: VARCHAR(64)}
+              # Only populated when one actually exists — a configuration-level
+              # anomaly legitimately has none, and a finding never invents one.
+              - column: {name: transaction_id, type: VARCHAR(64)}
+              - column: {name: order_id, type: VARCHAR(64)}
+              - column: {name: product_id, type: VARCHAR(64)}
+              - column: {name: actual_value, type: VARCHAR(400)}
+              - column: {name: expected_value, type: VARCHAR(400)}
+              - column: {name: description, type: TEXT}
+              # ── encrypted schema identifiers ──
+              # Base64 of the AES-256-GCM ciphertext. Never the plaintext name.
+              - column: {name: encrypted_table_name, type: TEXT, constraints: {nullable: false}}
+              - column: {name: encrypted_column_name, type: TEXT, constraints: {nullable: false}}
+              # The hourly data key, wrapped by the provider's master key. Never
+              # the plaintext data key.
+              - column: {name: encrypted_data_key, type: TEXT, constraints: {nullable: false}}
+              # LOCAL | AWS_KMS. Required so a future migration can tell
+              # development findings from KMS-encrypted ones (§19).
+              - column: {name: key_provider, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: key_version, type: VARCHAR(24), constraints: {nullable: false}}
+              - column: {name: algorithm, type: VARCHAR(24), constraints: {nullable: false}}
+              # One nonce per encryption operation; two values in one row means
+              # two nonces, so they are stored per value.
+              - column: {name: table_nonce, type: VARCHAR(48), constraints: {nullable: false}}
+              - column: {name: table_auth_tag, type: VARCHAR(48), constraints: {nullable: false}}
+              - column: {name: column_nonce, type: VARCHAR(48), constraints: {nullable: false}}
+              - column: {name: column_auth_tag, type: VARCHAR(48), constraints: {nullable: false}}
+              - column: {name: detected_at, type: TIMESTAMPTZ, constraints: {nullable: false}}
+              - column: {name: first_detected_at, type: TIMESTAMPTZ, constraints: {nullable: false}}
+              - column: {name: last_detected_at, type: TIMESTAMPTZ, constraints: {nullable: false}}
+              - column: {name: occurrence_count, type: INT, defaultValueNumeric: 1, constraints: {nullable: false}}
+              # OPEN | ACKNOWLEDGED | RESOLVED | FALSE_POSITIVE.
+              # The scanner may only ever write OPEN (§49).
+              - column: {name: status, type: VARCHAR(20), constraints: {nullable: false}}
+              - column: {name: created, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: {nullable: false}}
+              - column: {name: modified, type: TIMESTAMPTZ}
+        - addUniqueConstraint:
+            tableName: engineering_anomaly_finding
+            columnNames: uuid
+            constraintName: uq_eng_finding_uuid
+        # One logical finding per fingerprint. This is the deduplication
+        # guarantee in the database rather than in application logic: a repeated
+        # scan updates occurrence metadata instead of inserting a duplicate, and
+        # a race between two scans cannot produce two rows for one fingerprint.
+        - addUniqueConstraint:
+            tableName: engineering_anomaly_finding
+            columnNames: anomaly_fingerprint
+            constraintName: uq_eng_finding_fingerprint
+        - sql:
+            sql: >
+              CREATE INDEX IF NOT EXISTS ix_eng_finding_scan
+              ON engineering_anomaly_finding (scan_id, severity);
+              CREATE INDEX IF NOT EXISTS ix_eng_finding_txn
+              ON engineering_anomaly_finding (transaction_id);
+              CREATE INDEX IF NOT EXISTS ix_eng_finding_domain_status
+              ON engineering_anomaly_finding (domain, status, detected_at DESC);
+            rollback: >
+              DROP INDEX IF EXISTS ix_eng_finding_scan;
+              DROP INDEX IF EXISTS ix_eng_finding_txn;
+              DROP INDEX IF EXISTS ix_eng_finding_domain_status;
+
+  # Supporting evidence for a finding — the figures a rule compared, by
+  # reference. No customer or payment PII (§25).
+  - changeSet:
+      id: p017_engineering_anomaly_evidence
+      author: veloria
+      changes:
+        - createTable:
+            tableName: engineering_anomaly_evidence
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints: {primaryKey: true, nullable: false}
+              - column: {name: uuid, type: UUID, constraints: {nullable: false}}
+              - column:
+                  name: anomaly_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+                    references: engineering_anomaly_finding(id)
+                    foreignKeyName: fk_eng_evidence_finding
+              - column: {name: evidence_type, type: VARCHAR(48), constraints: {nullable: false}}
+              - column: {name: evidence_reference, type: VARCHAR(400)}
+              - column: {name: created, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: {nullable: false}}
+        - addUniqueConstraint:
+            tableName: engineering_anomaly_evidence
+            columnNames: uuid
+            constraintName: uq_eng_evidence_uuid
+        - sql:
+            sql: >
+              CREATE INDEX IF NOT EXISTS ix_eng_evidence_anomaly
+              ON engineering_anomaly_evidence (anomaly_id)
+            rollback: DROP INDEX IF EXISTS ix_eng_evidence_anomaly
+
+  # The read-only role must be able to read the monitoring tables too, because
+  # the scan's own read path runs through that datasource. It can never write
+  # them: findings are written through the primary datasource.
+  - changeSet:
+      id: p017_engineering_readonly_grants
+      author: veloria
+      changes:
+        - sql:
+            splitStatements: false
+            sql: >
+              DO $$
+              BEGIN
+                IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'veloria_scan_ro') THEN
+                  GRANT SELECT ON engineering_anomaly_scan     TO veloria_scan_ro;
+                  GRANT SELECT ON engineering_anomaly_finding  TO veloria_scan_ro;
+                  GRANT SELECT ON engineering_anomaly_evidence TO veloria_scan_ro;
+                END IF;
+              END $$;
+            rollback: SELECT 1
+
+  # ── Only one scan may be active, enforced by the database ─────────────────
+  #
+  # The advisory lock guarantees only one scan EXECUTES. It does not stop two
+  # requests both creating a QUEUED row: they read "nothing active", then both
+  # insert. A concurrency test made that happen immediately — three simultaneous
+  # requests produced one 202 and two 500s from the scan_number unique index,
+  # where the contract requires 409 SCAN_ALREADY_RUNNING.
+  #
+  # A partial unique index makes "at most one active scan" atomic and
+  # cluster-safe: the second inserter loses on a constraint the application can
+  # recognise and translate, rather than on a race it can only lose.
+  - changeSet:
+      id: p017_single_active_scan
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              CREATE UNIQUE INDEX IF NOT EXISTS uq_eng_scan_single_active
+              ON engineering_anomaly_scan ((status IS NOT NULL))
+              WHERE status IN ('QUEUED', 'RUNNING')
+            rollback: DROP INDEX IF EXISTS uq_eng_scan_single_active

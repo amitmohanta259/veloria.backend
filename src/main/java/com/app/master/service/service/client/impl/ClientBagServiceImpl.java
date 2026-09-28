@@ -13,10 +13,10 @@ import com.app.master.service.repository.admin.BusinessDetailsRepository;
 import com.app.master.service.repository.client.CustomerBagRepository;
 import com.app.master.service.repository.client.UserAddressRepository;
 import com.app.master.service.service.admin.GstCalculationService;
+import com.app.master.service.service.admin.GstConfigurationService;
 import com.app.master.service.service.client.ClientBagService;
 import com.app.master.service.service.client.ClientSessionStore;
 import com.app.master.service.service.payment.CodFeeTaxResolver;
-import com.app.master.service.service.payment.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,6 +36,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ClientBagServiceImpl implements ClientBagService {
 
+    /** Single-tenant today; the same literal every other service uses. */
+    private static final Long ORGANIZATION_ID = 1L;
+
     private final ClientSessionStore sessionStore;
     private final CustomerBagRepository bagRepository;
     private final AwsService awsService;
@@ -44,6 +47,8 @@ public class ClientBagServiceImpl implements ClientBagService {
     private final GstCalculationService gstCalculationService;
     /** Prices the COD charge's tax, so the quote matches the invoice. */
     private final CodFeeTaxResolver codFeeTaxResolver;
+    /** Whether COD is offered, and at what charge. */
+    private final GstConfigurationService configService;
 
     private String presign(String key) {
         if (key == null) return null;
@@ -171,6 +176,18 @@ public class ClientBagServiceImpl implements ClientBagService {
         List<Object[]> rows = bagRepository.findBagItemsForGst(userId);
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Kolkata"));
 
+        // Whether the tax can be determined at all, decided before the engine is
+        // asked anything. Without a place of supply there is no answer to "CGST and
+        // SGST, or IGST?", and the engine says so by throwing — which is right for
+        // an order being placed and wrong for a preview, where a shopper who has
+        // not chosen a delivery address yet is the ordinary first visit to the bag.
+        //
+        // The same gate the checkout path already applies (see
+        // ClientOrderServiceImpl's gstResolvable), applied here too rather than
+        // relaxed there: this decides what a preview may *say*, and changes nothing
+        // about what placing an order requires.
+        boolean gstResolved = !isBlank(buyerStateCode) && !isBlank(sellerStateCode);
+
         long totalCgst = 0, totalSgst = 0, totalIgst = 0, subtotal = 0;
         List<CartGstPreviewResponse.ItemGst> itemGsts = new ArrayList<>();
 
@@ -179,6 +196,16 @@ public class ClientBagServiceImpl implements ClientBagService {
             int quantity = ((Number) row[1]).intValue();
             long unitPrice = row[2] != null ? ((Number) row[2]).longValue() : 0L;
             String hsnCode = row[3] != null ? row[3].toString() : null;
+
+            if (!gstResolved) {
+                // The line, with its money but without a tax claim. Nulls, not
+                // zeros: "not yet determinable" must not be readable as "0%".
+                subtotal += unitPrice * quantity;
+                itemGsts.add(new CartGstPreviewResponse.ItemGst(
+                        productUuid, hsnCode, quantity, unitPrice, unitPrice * quantity,
+                        null, null, null, null, null, null, null));
+                continue;
+            }
 
             GstCalculationService.GstResult gst = gstCalculationService.calculate(
                     hsnCode, unitPrice, buyerStateCode, sellerStateCode, today);
@@ -201,34 +228,58 @@ public class ClientBagServiceImpl implements ClientBagService {
         }
 
         long totalGst = totalCgst + totalSgst + totalIgst;
-        boolean interState = buyerStateCode != null && sellerStateCode != null
-                && !buyerStateCode.trim().equals(sellerStateCode.trim());
-        long grandTotal = subtotal + totalGst;
+        boolean interState = gstResolved && !buyerStateCode.trim().equals(sellerStateCode.trim());
+
+        // What the shopper can be told the order comes to. With no tax determined
+        // that is the subtotal and nothing more — it is deliberately NOT presented
+        // as the grand total, which stays null below.
+        long knownTotal = gstResolved ? subtotal + totalGst : subtotal;
 
         // The cash-on-delivery charge, priced by the same resolver the order itself
         // uses, so the figure the customer is shown is the figure they are charged.
-        CodFeeTaxResolver.CodFeeTax codTax = codFeeTaxResolver.resolve(
-                PaymentService.COD_FEE_PAISE, buyerStateCode, sellerStateCode, today);
-
-        CartGstPreviewResponse.CodCharge codCharge = new CartGstPreviewResponse.CodCharge(
-                PaymentService.COD_FEE_PAISE,
-                codTax.totalTaxPaise(),
-                codTax.rateBp(),
-                codTax.resolution(),
-                grandTotal + PaymentService.COD_FEE_PAISE + codTax.totalTaxPaise());
+        //
+        // This quotes rather than throws: a checkout screen has to be able to say
+        // "cash on delivery is unavailable" without the whole cart preview failing.
+        // `available` is what the client keys off; an unresolved charge is never
+        // presented as a priceable one.
+        CartGstPreviewResponse.CodCharge codCharge = null;
+        if (configService.codEnabled(ORGANIZATION_ID)) {
+            CodFeeTaxResolver.CodFeeTax codTax =
+                    codFeeTaxResolver.resolve(buyerStateCode, sellerStateCode, today);
+            codCharge = new CartGstPreviewResponse.CodCharge(
+                    codTax.resolved(),
+                    codTax.serviceCode(),
+                    codTax.serviceName(),
+                    codTax.sacCode(),
+                    codTax.feePaise(),
+                    codTax.taxablePaise(),
+                    codTax.cgstPaise(),
+                    codTax.sgstPaise(),
+                    codTax.igstPaise(),
+                    codTax.totalTaxPaise(),
+                    codTax.rateBp(),
+                    codTax.taxInclusive(),
+                    buyerStateCode,
+                    codTax.resolution(),
+                    codTax.resolved() ? knownTotal + codTax.totalChargePaise() : knownTotal);
+        }
 
         return new CartGstPreviewResponse(
-                interState ? "INTER_STATE" : "INTRA_STATE",
+                gstResolved ? (interState ? "INTER_STATE" : "INTRA_STATE") : null,
                 buyerStateCode,
                 sellerStateCode,
                 subtotal,
-                totalCgst,
-                totalSgst,
-                totalIgst,
-                totalGst,
-                grandTotal,
+                gstResolved ? totalCgst : null,
+                gstResolved ? totalSgst : null,
+                gstResolved ? totalIgst : null,
+                gstResolved ? totalGst : null,
+                gstResolved ? knownTotal : null,
+                gstResolved,
+                gstResolved ? CodFeeTaxResolver.RULE_APPLIED : CodFeeTaxResolver.NO_PLACE_OF_SUPPLY,
                 codCharge,
                 itemGsts
         );
     }
+
+    private static boolean isBlank(String s) { return s == null || s.isBlank(); }
 }

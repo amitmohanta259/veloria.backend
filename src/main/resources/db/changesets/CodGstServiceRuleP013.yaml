@@ -1,0 +1,119 @@
+databaseChangeLog:
+
+  # ── A tax rule says which KIND of code it classifies ──────────────────────
+  #
+  # gst_tax_rules has always been generic — its code column carries no foreign key
+  # to the goods HSN master, so a service code fits in it structurally. What it
+  # could not say is which kind of code a given rule classifies, and that
+  # distinction matters for more than tidiness: without it a product's HSN rule and
+  # a service's SAC rule are indistinguishable to the resolver, so a
+  # misconfiguration could let a garment's rate price a handling charge.
+  #
+  # One additive column, defaulting to HSN so every existing rule keeps exactly the
+  # meaning it has. The code column itself is not renamed: it is read by a dozen
+  # queries and the rename would buy nothing the type column does not already give.
+  - changeSet:
+      id: p013_tax_rule_code_type
+      author: veloria
+      changes:
+        - addColumn:
+            tableName: gst_tax_rules
+            columns:
+              # HSN — a classification of goods. SAC — of services.
+              - column:
+                  name: tax_code_type
+                  type: VARCHAR(8)
+                  defaultValue: HSN
+                  constraints: {nullable: false}
+        - sql:
+            sql: UPDATE gst_tax_rules SET tax_code_type = 'HSN' WHERE tax_code_type IS NULL
+            rollback: SELECT 1
+        - sql:
+            sql: >
+              CREATE INDEX IF NOT EXISTS ix_gst_tax_rules_code_type
+              ON gst_tax_rules (tax_code_type, hsn_code)
+            rollback: DROP INDEX IF EXISTS ix_gst_tax_rules_code_type
+
+  # ── The approved COD service rule ─────────────────────────────────────────
+  #
+  # SAC 998599, 18% — 9% CGST + 9% SGST intra-state, 18% IGST inter-state.
+  #
+  # Effective from 2017-07-01, matching every other rule in this master: that is
+  # the date GST came into force and the date the existing product rules carry, so
+  # a rule dated later would leave a gap for any order dated before it.
+  #
+  # Priority 300 — above the goods chapters (200) and level with the leather
+  # chapters, which is immaterial here because an EXACT match on a SAC cannot
+  # collide with a PREFIX match on an HSN chapter. It is set explicitly rather than
+  # left to the default so the intent is on the record.
+  #
+  # SAC 998599 is the application's CONFIGURED classification, not a legal
+  # determination. See docs/p0-13-cod-gst-tax-treatment.md: a GST adviser must
+  # confirm it describes this business's actual handling service before it is used
+  # for filing. It lives here, in configuration, precisely so that confirmation can
+  # change it without a code release.
+  - changeSet:
+      id: p013_cod_service_tax_rule
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              INSERT INTO gst_tax_rules
+                (uuid, hsn_code, tax_code_type, hsn_match_type, description,
+                 cgst_rate_bp, sgst_rate_bp, igst_rate_bp, cess_rate_bp,
+                 priority, effective_from, active, created)
+              SELECT gen_random_uuid(), '998599', 'SAC', 'EXACT',
+                     'Other support services nowhere else classified — cash on delivery handling',
+                     900, 900, 1800, 0, 300, DATE '2017-07-01', true, now()
+              WHERE NOT EXISTS (SELECT 1 FROM gst_tax_rules
+                                 WHERE hsn_code = '998599' AND tax_code_type = 'SAC')
+            rollback: DELETE FROM gst_tax_rules WHERE hsn_code = '998599' AND tax_code_type = 'SAC'
+
+  # ── The COD service classification and tax basis ──────────────────────────
+  #
+  # These two were shipped deliberately empty by P0-14 because they were unapproved
+  # tax determinations. They are now approved, so they are configured — still as
+  # configuration, so a later tax opinion changes a row rather than a release.
+  #
+  # INCLUSIVE: the customer-facing charge is ₹50 and the GST is inside it, so the
+  # taxable value is ₹42.37 and the tax ₹7.63. The customer pays ₹50, not ₹59.
+  - changeSet:
+      id: p013_cod_service_configuration
+      author: veloria
+      changes:
+        - sql:
+            sql: >
+              UPDATE gst_configuration
+                 SET config_value = '998599',
+                     source_reference = 'P0-13 approved implementation candidate — pending CA validation',
+                     description = 'The service accounting code the COD handling charge is supplied '
+                                || 'under. Its GST rate is configured against this code in '
+                                || 'gst_tax_rules (tax_code_type SAC, match type EXACT). A GST adviser '
+                                || 'must confirm this classification before it is used for filing.'
+               WHERE config_key = 'COD_FEE_SAC' AND organization_id = 1
+            rollback: >
+              UPDATE gst_configuration SET config_value = NULL
+               WHERE config_key = 'COD_FEE_SAC' AND organization_id = 1
+        - sql:
+            sql: >
+              UPDATE gst_configuration
+                 SET config_value = 'INCLUSIVE',
+                     source_reference = 'P0-13 approved business decision',
+                     description = 'INCLUSIVE — the ₹50 charge the customer sees already contains '
+                                || 'the GST, so the taxable value is carved out of it. EXCLUSIVE '
+                                || 'would add the GST on top and bill ₹59.'
+               WHERE config_key = 'COD_FEE_TAX_BASIS' AND organization_id = 1
+            rollback: >
+              UPDATE gst_configuration SET config_value = NULL
+               WHERE config_key = 'COD_FEE_TAX_BASIS' AND organization_id = 1
+        - sql:
+            sql: >
+              INSERT INTO gst_configuration
+                (organization_id, config_key, config_value, value_type, description,
+                 source_reference, effective_from, active, created_at)
+              SELECT 1, 'COD_FEE_SERVICE_NAME', 'Cash on Delivery Handling Fee', 'STRING',
+                     'How the charge is described to the customer and on the invoice line.',
+                     'P0-13 approved business decision', DATE '2017-07-01', true, now()
+              WHERE NOT EXISTS (SELECT 1 FROM gst_configuration
+                                 WHERE config_key = 'COD_FEE_SERVICE_NAME' AND organization_id = 1)
+            rollback: DELETE FROM gst_configuration WHERE config_key = 'COD_FEE_SERVICE_NAME'

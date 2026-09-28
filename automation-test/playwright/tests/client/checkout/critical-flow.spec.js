@@ -15,6 +15,7 @@ const { OrderHistoryPage } = require('../../../pages/client/OrderHistoryPage');
 const addresses = require('../../../test-data/addresses');
 
 test.describe('Critical flow @regression @mutates @critical', () => {
+
   test('ORD-011 browse → product → Buy Now → bag → checkout → order confirmed → in history', async ({ page, api, buyer, session, signIn, aProduct }) => {
     await db.seedDefaultAddress(buyer, addresses.karnataka.stateCode, addresses.karnataka.pincode);
     await signIn(page, session, buyer);

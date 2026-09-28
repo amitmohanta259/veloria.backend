@@ -33,10 +33,21 @@ public class GstController extends AppController {
     private final GstStateMasterRepository stateRepository;
     private final GstCalculationService calculationService;
 
+    /**
+     * The configured tax rules.
+     *
+     * <p>Active rules only by default, which is what every existing caller expects.
+     * {@code includeInactive=true} also returns withdrawn ones — without it a rule
+     * that was deactivated is invisible in the interface and so cannot be
+     * reactivated, which made {@link #toggleRule} a one-way door.
+     */
     @PreAuthorize("hasAuthority('VIEW_GST')")
     @GetMapping("/rules")
-    public ResponseEntity<Response> getAllRules() {
-        List<GstTaxRuleEntity> rules = ruleRepository.findByActiveTrueOrderByPriorityDescHsnCode();
+    public ResponseEntity<Response> getAllRules(
+            @RequestParam(required = false, defaultValue = "false") boolean includeInactive) {
+        List<GstTaxRuleEntity> rules = includeInactive
+                ? ruleRepository.findAllByOrderByActiveDescPriorityDescHsnCode()
+                : ruleRepository.findByActiveTrueOrderByPriorityDescHsnCode();
         return data(ResponseCode.FETCHED, null, rules);
     }
 
@@ -63,10 +74,19 @@ public class GstController extends AppController {
         return success(ResponseCode.CREATED, "GST rule created", entity);
     }
 
+    /**
+     * Activates or deactivates a rule.
+     *
+     * <p>Looks the rule up regardless of its current state. It previously used
+     * {@code findByUuidAndActiveTrue}, which meant a toggle could only ever switch a
+     * rule <em>off</em>: once inactive, the lookup no longer found it and the rule
+     * could never be brought back. That matters for any rate managed here — a rule
+     * withdrawn in error was unrecoverable through the interface.
+     */
     @PreAuthorize("hasAuthority('ADMIN_GST')")
     @PatchMapping("/rules/{uuid}/toggle")
     public ResponseEntity<Response> toggleRule(@PathVariable UUID uuid) throws VeloriaException {
-        GstTaxRuleEntity rule = ruleRepository.findByUuidAndActiveTrue(uuid)
+        GstTaxRuleEntity rule = ruleRepository.findByUuid(uuid)
                 .orElseThrow(() -> new VeloriaException(ResponseCode.NOT_FOUND, "Rule not found"));
         rule.setActive(!rule.getActive());
         rule.setModified(Instant.now());

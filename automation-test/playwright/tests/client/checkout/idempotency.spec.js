@@ -43,6 +43,7 @@ async function ordersFor(reference) {
 
 test.describe('A retried checkout stays one order @regression @mutates @idempotency', () => {
 
+
   test('replaying the request the page sent returns the same order, and sells one unit', async ({ page, api, buyer, session, signIn }) => {
     const product = await seedProduct(5);
     try {
@@ -97,7 +98,7 @@ test.describe('A retried checkout stays one order @regression @mutates @idempote
       // The page picks the default address once the address list arrives; waiting
       // for it is what makes the checkout ready, not merely rendered.
       await expect(page.getByText('12 Automation Lane').first()).toBeVisible();
-      await page.getByText('Cash on Delivery').click();
+      await page.getByRole('button', { name: /Cash on Delivery/i }).click();
       const placeOrder = page.getByRole('button', { name: /^place order$/i });
       await expect(placeOrder).toBeEnabled();
 

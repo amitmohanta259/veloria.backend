@@ -12,3 +12,13 @@ application-dev.yaml
 uploads/
 *.env
 .keycloak-secret
+
+# Engineering local development key material (P0-17).
+# The local key provider writes to ~/.veloria/engineering-keys/, outside any
+# repository, so these patterns are a second line of defence rather than the
+# primary one: if a key file is ever produced inside a checkout by accident, it
+# must not be committable.
+.veloria/
+engineering-keys/
+*.key
+*.keystore

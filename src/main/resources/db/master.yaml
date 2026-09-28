@@ -171,3 +171,9 @@ databaseChangeLog:
       file: db/changesets/Accounting002-Seed.yaml
   - include:
       file: db/changesets/FinancialDecisionsP011.yaml
+  - include:
+      file: db/changesets/CodServiceTaxP014.yaml
+  - include:
+      file: db/changesets/CodGstServiceRuleP013.yaml
+  - include:
+      file: db/changesets/EngineeringAnomalyP017.yaml

@@ -45,6 +45,11 @@ public class AppExceptionHandler extends ResponseEntityExceptionHandler {
             case UNAUTHORIZED -> httpStatus = HttpStatus.UNAUTHORIZED;
             case UNSUPPORTED_MEDIA_TYPE -> httpStatus = HttpStatus.UNSUPPORTED_MEDIA_TYPE;
             case NOT_FOUND -> httpStatus = HttpStatus.BAD_REQUEST;
+            // A conflict is not a malformed request. The Engineering scan endpoint
+            // refuses a second concurrent scan with SCAN_ALREADY_RUNNING, and a
+            // client needs to tell "you sent something invalid" from "this is
+            // temporarily not possible, and retrying later will work".
+            case CONFLICT -> httpStatus = HttpStatus.CONFLICT;
             case INTERNAL_ERROR, DB_ERROR, IAM_ERROR, AWS_ERROR -> httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
         }
 

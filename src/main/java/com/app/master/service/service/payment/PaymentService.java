@@ -51,8 +51,14 @@ import java.util.Optional;
 @Slf4j
 public class PaymentService {
 
-    /** The approved flat handling charge for cash on delivery, in paise. */
-    public static final long COD_FEE_PAISE = 5000L;
+    /**
+     * The organization these figures belong to.
+     *
+     * <p>Single-tenant today; every other service in this application uses the same
+     * literal, and naming it here keeps the configuration lookups readable rather
+     * than pretending there is tenancy that does not exist yet.
+     */
+    private static final Long ORGANIZATION_ID = 1L;
 
     private final RazorpayGateway razorpay;
     private final RazorpayProperties razorpayProperties;
@@ -66,6 +72,8 @@ public class PaymentService {
     private final com.app.master.service.service.admin.AccountingPostingService accounting;
     /** Prices the tax on the COD handling charge from the tax master. */
     private final CodFeeTaxResolver codFeeTax;
+    /** Where the COD charge's amount and availability are configured. */
+    private final com.app.master.service.service.admin.GstConfigurationService gstConfig;
     private final com.app.master.service.repository.payment.PaymentRefundRepository refundRepo;
 
     // ── initiation ───────────────────────────────────────────────────────────
@@ -209,24 +217,31 @@ public class PaymentService {
     }
 
     /**
-     * Puts the approved handling charge, and its tax, on a cash-on-delivery order.
+     * Puts the configured handling charge, and its tax, on a cash-on-delivery order.
      *
-     * <p>Written once and then left alone: the charge and the rate that applied
-     * are frozen on the order, so a return prepared next year reproduces what the
-     * customer was actually charged rather than what today's rules would charge.
+     * <p>Written once and then left alone. The charge, the service code it was taxed
+     * under, the rate that applied and the amounts it produced are all frozen on the
+     * order, so a return prepared next year reproduces what the customer was
+     * actually charged rather than what the configuration says today.
      *
-     * <p>The tax comes from the tax master by service code and order date. Where
-     * the master cannot price it the charge still stands — it is approved at ₹50 —
-     * but the tax figures stay zero and the reason is recorded, so nothing is
-     * invoiced or posted at a rate nobody approved. The accounting refuses to
-     * recognise an unresolved charge for the same reason.
+     * <p><b>Refuses rather than approximates.</b> If cash on delivery is offered but
+     * its tax configuration is incomplete — no service code, no tax basis, or no
+     * active rule for that code — this throws and the customer is told COD is
+     * unavailable. The alternative would be to charge them a fee at a rate nobody
+     * approved, or to record a taxable supply as untaxed; both are misdeclarations,
+     * and neither is improved by being silent.
      */
-    private void applyCodFee(CustomerOrderEntity order) {
+    private void applyCodFee(CustomerOrderEntity order) throws VeloriaException {
         if (nz(order.getCodFeePaise()) != 0L) return;
 
-        CodFeeTaxResolver.CodFeeTax tax = codFeeTax.resolve(order, COD_FEE_PAISE);
+        if (!gstConfig.codEnabled(ORGANIZATION_ID)) {
+            throw new VeloriaException(ResponseCode.BAD_REQUEST,
+                    "Cash on delivery is not available.");
+        }
 
-        order.setCodFeePaise(COD_FEE_PAISE);
+        CodFeeTaxResolver.CodFeeTax tax = codFeeTax.require(order);
+
+        order.setCodFeePaise(tax.feePaise());
         order.setCodFeeTaxablePaise(tax.taxablePaise());
         order.setCodFeeSacCode(tax.sacCode());
         order.setCodFeeTaxRateBp(tax.rateBp());

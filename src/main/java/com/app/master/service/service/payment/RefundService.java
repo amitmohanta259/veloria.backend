@@ -57,6 +57,9 @@ import java.util.Optional;
 @Slf4j
 public class RefundService {
 
+    /** Single-tenant today; the same literal every other service uses. */
+    private static final Long ORGANIZATION_ID = 1L;
+
     /** Statuses meaning the goods are physically back with the seller. */
     private static final EnumSet<OrderStatus> GOODS_RECEIVED = EnumSet.of(
             OrderStatus.RECEIVED, OrderStatus.RETURNED, OrderStatus.PARTIALLY_RETURNED);
@@ -85,6 +88,8 @@ public class RefundService {
     private final OrderReturnRequestRepository returnRepo;
     private final RazorpayGateway razorpay;
     private final AccountingPostingService accounting;
+    /** Whether the handling charge is refundable. */
+    private final com.app.master.service.service.admin.GstConfigurationService gstConfig;
 
     // ── eligibility ──────────────────────────────────────────────────────────
 
@@ -96,10 +101,12 @@ public class RefundService {
      * @param amountPaise what would be refunded, from the stored allocation
      */
     public record Eligibility(boolean eligible, String reason, long amountPaise,
-                              long productPaise, long gstPaise, Long attemptId, String destination) {
+                              long productPaise, long gstPaise,
+                              long codFeePaise, long codTaxPaise,
+                              Long attemptId, String destination) {
 
         static Eligibility no(String reason) {
-            return new Eligibility(false, reason, 0, 0, 0, null, null);
+            return new Eligibility(false, reason, 0, 0, 0, 0, 0, null, null);
         }
     }
 
@@ -163,14 +170,27 @@ public class RefundService {
                     + ", so there is nothing to refund");
         }
 
-        // Cash on delivery has no electronic destination and the schema holds no
-        // customer bank or UPI details, so there is nowhere to send the money.
-        // Refusing is the honest answer; inventing a destination is not.
+        // Cash on delivery: there is nowhere approved to send the money.
+        //
+        // Cash arrived at the door, so there is no instrument to return it to the way
+        // a card or UPI payment has one. Which destination replaces it — store credit,
+        // a bank transfer, UPI, or a manual payment recorded here and made by finance
+        // — is an open business decision (D-COD-REFUND in the decision register), and
+        // each choice implies different things: a wallet needs balances, expiry and
+        // its own accounting; bank or UPI means storing customer payment details.
+        //
+        // So the refusal names the missing decision, and does not pick one. An earlier
+        // version of this message asserted that store credit was "the approved refund
+        // destination" — it is option C in the register, approved by nobody. The
+        // five-state refund machine can hold such a refund at APPROVED once a
+        // destination exists; what it must never do is send cash somewhere nobody
+        // chose, or tell a customer a decision has been made that has not.
         if (captured.stream().allMatch(a -> "COD".equals(a.getGateway()))) {
             return Eligibility.no("Order " + order.getOrderCode()
-                    + " was paid in cash on delivery, which has no refund destination. "
-                    + "The route for returning cash is an approved decision this application "
-                    + "does not yet hold.");
+                    + " was paid in cash on delivery, and no refund destination has been "
+                    + "approved for cash payments, so the refund cannot be issued here. "
+                    + "The amount owed stands; how it reaches the customer needs a business "
+                    + "decision.");
         }
 
         long product = 0;
@@ -205,7 +225,40 @@ public class RefundService {
             return Eligibility.no("Everything refundable on order " + order.getOrderCode()
                     + " has already been refunded");
         }
-        return new Eligibility(true, null, product + gst, product, gst, attemptId, RAZORPAY_SOURCE);
+
+        // The handling charge, if configuration says it comes back.
+        //
+        // Not refundable unless configured so: that is the treatment the schema has
+        // expressed since the refund table was created, and silence keeps the
+        // existing rule rather than inventing a new one. When it IS refundable, the
+        // charge and its output tax both come back — refunding the charge while
+        // keeping the tax collected on it would leave an output-tax liability with
+        // no supply behind it.
+        long codFee = 0;
+        long codTax = 0;
+        if (gstConfig.codFeeRefundable(ORGANIZATION_ID)
+                && nz(order.getCodFeePaise()) > 0
+                && "RULE_APPLIED".equals(order.getCodFeeTaxResolution())
+                && !codAlreadyRefunded(order)) {
+            codFee = nz(order.getCodFeeTaxablePaise()) > 0
+                    ? nz(order.getCodFeeTaxablePaise()) : nz(order.getCodFeePaise());
+            codTax = nz(order.getCodFeeTaxPaise());
+        }
+
+        return new Eligibility(true, null, product + gst + codFee + codTax,
+                product, gst, codFee, codTax, attemptId, RAZORPAY_SOURCE);
+    }
+
+    /**
+     * Whether the handling charge has already been given back on this order.
+     *
+     * <p>The charge belongs to the order, not to a payment attempt, so it can only
+     * ever be refunded once however many payments the order had.
+     */
+    private boolean codAlreadyRefunded(CustomerOrderEntity order) {
+        return refundRepo.findByCustomerOrderIdOrderByIdAsc(order.getId()).stream()
+                .filter(r -> !FAILED.equals(r.getStatus()))
+                .anyMatch(r -> nz(r.getCodFeeRefundedPaise()) > 0 || nz(r.getCodTaxRefundedPaise()) > 0);
     }
 
     // ── issuing ──────────────────────────────────────────────────────────────
@@ -283,6 +336,8 @@ public class RefundService {
                 .amountPaise(eligibility.amountPaise())
                 .productRefundedPaise(eligibility.productPaise())
                 .gstRefundedPaise(eligibility.gstPaise())
+                .codFeeRefundedPaise(eligibility.codFeePaise())
+                .codTaxRefundedPaise(eligibility.codTaxPaise())
                 .status(REQUESTED)
                 .reason(safe(performedBy))
                 .createdAt(Instant.now())

@@ -111,4 +111,52 @@ async function removeBuyer(buyer) {
   await q(`DELETE FROM users WHERE uuid = $1::uuid`, [buyer.userUuid]);
 }
 
-module.exports = { q, seedBuyer, seedSession, seedDefaultAddress, removeOrdersOf, removeBuyer };
+
+/**
+ * Configures the cash-on-delivery charge so a test can actually place a COD order.
+ *
+ * Since P0-14 the charge's service code, tax basis and rate are configuration and
+ * tax-master data rather than code, and the shipped state leaves the two tax
+ * decisions unmade — so COD is refused until an administrator configures it. A test
+ * that places a COD order has to set that up, exactly as an administrator would.
+ *
+ * The SAC and rate here exist only for tests. They are not a claim about what the
+ * approved values should be.
+ */
+const COD_TEST_SAC = '999799';
+
+async function configureCod() {
+  await q(`DELETE FROM gst_tax_rules WHERE description LIKE 'Automation COD%'`);
+  await q(`INSERT INTO gst_tax_rules (uuid, hsn_code, hsn_match_type, description,
+                                      cgst_rate_bp, sgst_rate_bp, igst_rate_bp, cess_rate_bp,
+                                      priority, effective_from, active, created)
+           VALUES (gen_random_uuid(), $1, 'EXACT', 'Automation COD handling charge',
+                   900, 900, 1800, 0, 900, DATE '2017-07-01', true, now())`, [COD_TEST_SAC]);
+  await setConfig('COD_ENABLED', 'true');
+  await setConfig('COD_FEE_PAISE', '5000');
+  await setConfig('COD_FEE_SAC', COD_TEST_SAC);
+  await setConfig('COD_FEE_TAX_BASIS', 'EXCLUSIVE');
+}
+
+/** Puts the shipped configuration back: the charge set, the tax decisions unmade. */
+async function restoreCod() {
+  await q(`DELETE FROM gst_tax_rules WHERE description LIKE 'Automation COD%'`);
+  await q(`UPDATE gst_configuration SET config_value = NULL
+            WHERE config_key IN ('COD_FEE_SAC', 'COD_FEE_TAX_BASIS') AND organization_id = 1`);
+  await q(`UPDATE gst_configuration SET config_value = '5000'
+            WHERE config_key = 'COD_FEE_PAISE' AND organization_id = 1`);
+}
+
+/** Updates in place so the row keeps the value_type and description it shipped with. */
+async function setConfig(key, value) {
+  const { rowCount } = await q(
+    `UPDATE gst_configuration SET config_value = $2 WHERE config_key = $1 AND organization_id = 1`,
+    [key, value]);
+  if (!rowCount) {
+    await q(`INSERT INTO gst_configuration (organization_id, config_key, config_value, value_type,
+                                            effective_from, active, created_at)
+             VALUES (1, $1, $2, 'STRING', DATE '2017-07-01', true, now())`, [key, value]);
+  }
+}
+
+module.exports = { q, seedBuyer, configureCod, restoreCod, seedSession, seedDefaultAddress, removeOrdersOf, removeBuyer };

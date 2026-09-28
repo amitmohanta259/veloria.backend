@@ -34,7 +34,10 @@ public record OrderInvoice(
         long gstPaise,
         long transportPaise,
         long otherChargesPaise,
+        /** The configured charge: the taxable value when exclusive, the gross when inclusive. */
         long codFeePaise,
+        /** The value the COD tax was actually charged on. */
+        long codFeeTaxablePaise,
         long codFeeTaxPaise) {
 
     public static OrderInvoice of(CustomerOrderEntity order) {
@@ -47,13 +50,47 @@ public record OrderInvoice(
                 // COD fee's line.
                 0L,
                 nz(order.getCodFeePaise()),
+                // Falls back to the fee for an order whose charge was never taxed, so
+                // gross stays the fee for every order placed before COD was taxed.
+                nz(order.getCodFeeTaxablePaise()) > 0
+                        ? nz(order.getCodFeeTaxablePaise()) : nz(order.getCodFeePaise()),
                 nz(order.getCodFeeTaxPaise()));
+    }
+
+    /**
+     * What the customer owes for the COD handling charge, tax included.
+     *
+     * <pre>
+     *   gross = taxable + tax
+     * </pre>
+     *
+     * <p>That one expression is correct under both tax bases, which is why it is
+     * used instead of adding the fee and the tax together:
+     *
+     * <ul>
+     *   <li><b>Exclusive</b> — taxable is the ₹50 charge and the tax is added on
+     *       top, so gross is ₹50 + tax.</li>
+     *   <li><b>Inclusive</b> — the ₹50 charge already contains the tax, so taxable
+     *       is ₹42.37 and the tax ₹7.63, and gross is back to ₹50.</li>
+     * </ul>
+     *
+     * <p>Adding {@code codFeePaise + codFeeTaxPaise} would be right for the first
+     * and wrong for the second: it would bill an inclusive ₹50 charge as ₹57.63,
+     * quoting the customer one figure at checkout and charging another. That is the
+     * shape of the defect this replaced.
+     *
+     * <p>A historical order whose charge was never taxed has taxable equal to the
+     * fee and no tax, so this returns the fee — unchanged for every order already
+     * placed.
+     */
+    public long codGrossPaise() {
+        return codFeeTaxablePaise + codFeeTaxPaise;
     }
 
     /** Everything the customer owes for this order, in paise. */
     public long finalInvoiceTotalPaise() {
         return productPaise + gstPaise + transportPaise
-                + otherChargesPaise + codFeePaise + codFeeTaxPaise;
+                + otherChargesPaise + codGrossPaise();
     }
 
     /**
@@ -67,7 +104,7 @@ public record OrderInvoice(
      * product's GST for the same reason.
      */
     public long otherPaise() {
-        return otherChargesPaise + codFeePaise + codFeeTaxPaise;
+        return otherChargesPaise + codGrossPaise();
     }
 
     /**

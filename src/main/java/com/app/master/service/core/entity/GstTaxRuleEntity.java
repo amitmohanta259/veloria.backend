@@ -23,8 +23,29 @@ public class GstTaxRuleEntity {
     @Builder.Default
     private UUID uuid = UUID.randomUUID();
 
+    /**
+     * The classification code this rule prices.
+     *
+     * <p>An HSN for goods, a SAC for services — {@link #taxCodeType} says which.
+     * The column name predates services being taxed here and is kept because a
+     * dozen queries read it; the type column is what disambiguates.
+     */
     @Column(name = "hsn_code", nullable = false)
     private String hsnCode;
+
+    /**
+     * {@code HSN} for a classification of goods, {@code SAC} for one of services.
+     *
+     * <p>More than a label. Without it a product's rule and a service's rule are
+     * indistinguishable, so a misconfigured service code could be priced by a
+     * garment's rate. Resolution is filtered on this, so the two can never cross.
+     */
+    @Builder.Default
+    @Column(name = "tax_code_type", nullable = false)
+    private String taxCodeType = TYPE_HSN;
+
+    public static final String TYPE_HSN = "HSN";
+    public static final String TYPE_SAC = "SAC";
 
     @Column(name = "hsn_match_type", nullable = false)
     private String hsnMatchType; // EXACT, PREFIX

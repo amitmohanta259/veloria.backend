@@ -66,6 +66,24 @@ public class PaymentRefundEntity {
     @Column(name = "gst_refunded_paise", nullable = false)
     private Long gstRefundedPaise = 0L;
 
+    /**
+     * The cash-on-delivery handling charge and its output tax, when configuration
+     * says the charge is refundable.
+     *
+     * <p>Zero by default, which is the standing treatment: the charge is not
+     * refunded unless {@code COD_FEE_REFUNDABLE} says so. Kept as its own pair of
+     * heads rather than folded into the product and GST columns, because it is a
+     * different supply under a different service code — a credit note has to
+     * reverse it as one.
+     */
+    @Builder.Default
+    @Column(name = "cod_fee_refunded_paise")
+    private Long codFeeRefundedPaise = 0L;
+
+    @Builder.Default
+    @Column(name = "cod_tax_refunded_paise")
+    private Long codTaxRefundedPaise = 0L;
+
     /** REQUESTED, COMPLETED or FAILED. Only COMPLETED means the money moved. */
     @Column(nullable = false)
     private String status;

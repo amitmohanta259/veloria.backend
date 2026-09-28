@@ -12,6 +12,7 @@ import com.app.master.service.service.client.ClientOrderService;
 import com.app.master.service.service.payment.PaymentService;
 import com.app.master.service.service.payment.RazorpayGateway;
 import com.app.master.service.support.AccountingResidue;
+import com.app.master.service.support.CodTestConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -113,6 +114,10 @@ class SaleAndCollectionPostgresTest {
                 """, productUuid.toString(), "AUTO-SAL-" + productUuid.toString().substring(0, 8));
         productId = jdbc.queryForObject(
                 "SELECT id FROM inventory_product WHERE uuid = ?::uuid", Long.class, productUuid.toString());
+
+        // These tests use COD to exercise collection; since P0-14 the charge is
+        // configured rather than coded, so it has to be set up like production.
+        CodTestConfig.configure(jdbc);
     }
 
     /** Places a real order through checkout, so the sale is posted the way it is in production. */
@@ -189,6 +194,7 @@ class SaleAndCollectionPostgresTest {
         jdbc.update("DELETE FROM user_address WHERE user_id = ?", buyerUuid);
         jdbc.update("DELETE FROM client_session WHERE user_id = ?", buyerUuid);
         jdbc.update("DELETE FROM users WHERE uuid = ?::uuid", buyerUuid);
+        CodTestConfig.restore(jdbc);
 
         // Fail here rather than let residue move the historical checksum.
         AccountingResidue.assertNone(jdbc);
@@ -231,8 +237,12 @@ class SaleAndCollectionPostgresTest {
 
     private long invoiceTotal(Long orderId) {
         return jdbc.queryForObject("""
+                -- The COD gross is taxable + tax, which is right under both tax bases.
+                -- Adding the FEE and the tax would double-count an inclusive charge,
+                -- overstating a ₹50 charge as ₹57.63 — the defect P0-13 fixed.
                 SELECT COALESCE(total_value,0) + COALESCE(shipping_value,0)
-                     + COALESCE(cod_fee_paise,0) + COALESCE(cod_fee_tax_paise,0)
+                     + COALESCE(NULLIF(cod_fee_taxable_paise,0), cod_fee_paise, 0)
+                     + COALESCE(cod_fee_tax_paise,0)
                   FROM customer_order WHERE id = ?
                 """, Long.class, orderId);
     }

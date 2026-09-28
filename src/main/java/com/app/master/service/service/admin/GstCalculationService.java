@@ -34,7 +34,10 @@ public class GstCalculationService {
             long cessAmount,
             long totalTax,
             boolean interState,
-            /** RULE_APPLIED, NO_HSN, NO_RULE — so callers can distinguish 0% from unconfigured */
+            /**
+             * RULE_APPLIED, NO_HSN, NO_RULE, NO_PLACE_OF_SUPPLY — so callers can
+             * distinguish a genuine 0% from a tax nobody has been able to determine.
+             */
             String resolution
     ) {
         public static GstResult zero(String hsnCode, long pricePaise, long taxable, int qty, String resolution) {
@@ -43,7 +46,8 @@ public class GstCalculationService {
 
         /** True when GST could not be resolved, as opposed to a genuine 0% rate. */
         public boolean unresolved() {
-            return "NO_HSN".equals(resolution) || "NO_RULE".equals(resolution);
+            return "NO_HSN".equals(resolution) || "NO_RULE".equals(resolution)
+                    || "NO_PLACE_OF_SUPPLY".equals(resolution);
         }
     }
 
@@ -158,20 +162,43 @@ public class GstCalculationService {
             String sellerStateCode,
             LocalDate effectiveDate
     ) {
+        return calculateOnTaxableValue(hsnCode, GstTaxRuleEntity.TYPE_HSN, taxableValuePaise,
+                quantity, placeOfSupplyStateCode, sellerStateCode, effectiveDate);
+    }
+
+    /**
+     * The same calculation for a code of a stated kind — an HSN for goods, a SAC for
+     * services.
+     *
+     * <p>One engine, one rate master, one precedence rule. What the type does is stop
+     * a goods rule pricing a service and a service rule pricing goods: they are
+     * different supplies and a rate is not transferable between them.
+     */
+    public GstResult calculateOnTaxableValue(
+            String taxCode,
+            String taxCodeType,
+            long taxableValuePaise,
+            int quantity,
+            String placeOfSupplyStateCode,
+            String sellerStateCode,
+            LocalDate effectiveDate
+    ) {
+        String hsnCode = taxCode;
         int qty = Math.max(1, quantity);
         long slabPrice = taxableValuePaise / qty;
 
         if (hsnCode == null || hsnCode.isBlank()) {
-            log.warn("Product has no HSN code; GST cannot be resolved (taxable={})", taxableValuePaise);
+            log.warn("No {} code supplied; GST cannot be resolved (taxable={})",
+                    taxCodeType, taxableValuePaise);
             return GstResult.zero(null, slabPrice, taxableValuePaise, qty, "NO_HSN");
         }
 
-        List<GstTaxRuleEntity> rules = taxRuleRepository.findMatchingRules(
-                hsnCode, slabPrice, effectiveDate != null ? effectiveDate : LocalDate.now());
+        List<GstTaxRuleEntity> rules = taxRuleRepository.findMatchingRulesOfType(
+                hsnCode, taxCodeType, slabPrice, effectiveDate != null ? effectiveDate : LocalDate.now());
 
         if (rules.isEmpty()) {
-            log.warn("No GST rule matches HSN={} price={} on {} — treating as unresolved, not 0%",
-                    hsnCode, slabPrice, effectiveDate);
+            log.warn("No active {} rule matches {} price={} on {} — treating as unresolved, not 0%",
+                    taxCodeType, hsnCode, slabPrice, effectiveDate);
             return GstResult.zero(hsnCode, slabPrice, taxableValuePaise, qty, "NO_RULE");
         }
 

@@ -4,6 +4,7 @@ import com.app.master.service.core.entity.*;
 import com.app.master.service.core.exception.VeloriaException;
 import com.app.master.service.core.response.ResponseCode;
 import com.app.master.service.repository.admin.*;
+import com.app.master.service.service.payment.CodFeeTaxResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -262,7 +263,91 @@ public class SalesInvoiceService {
             t.cess += gst.cessAmount();
         }
         t.shippingTaxable = shippingAllocated;
+        addCodServiceLine(invoice, order, lines, lineNo, t);
         return t;
+    }
+
+    /**
+     * The cash-on-delivery handling charge, as its own invoice line.
+     *
+     * <p>A line of its own, deliberately — unlike shipping, which is apportioned
+     * into the product lines as part of a composite supply. Handling is a separate
+     * supply of a <b>service</b> under its own service code, and folding it into a
+     * garment's line would declare it at the garment's rate and lose the
+     * classification entirely.
+     *
+     * <p>Every figure is read from the order's frozen snapshot, never recomputed:
+     * an invoice raised today for an order placed last year must show what that
+     * customer was charged, not what the configuration says now. A charge whose tax
+     * was never resolved produces no line at all, because there is nothing
+     * defensible to declare.
+     */
+    private void addCodServiceLine(SalesInvoiceEntity invoice, CustomerOrderEntity order,
+                                   List<SalesInvoiceItemEntity> lines, int lineNo, Totals t) {
+        long fee = nvl(order.getCodFeePaise());
+        if (fee <= 0) return;
+        if (!"RULE_APPLIED".equals(order.getCodFeeTaxResolution())) {
+            log.warn("Order {} carries a COD charge of {} paise whose tax is {}; it is not being "
+                   + "invoiced as a service line", order.getOrderCode(), fee,
+                    order.getCodFeeTaxResolution());
+            return;
+        }
+
+        long taxable = nvl(order.getCodFeeTaxablePaise()) > 0 ? nvl(order.getCodFeeTaxablePaise()) : fee;
+        long cgst = nvl(order.getCodFeeCgstPaise());
+        long sgst = nvl(order.getCodFeeSgstPaise());
+        long igst = nvl(order.getCodFeeIgstPaise());
+        long tax = cgst + sgst + igst;
+
+        // Rates are derived from the frozen amounts rather than looked up again, so
+        // the line reports the rate that was actually applied.
+        int cgstRateBp = rateBpOf(cgst, taxable);
+        int sgstRateBp = rateBpOf(sgst, taxable);
+        int igstRateBp = rateBpOf(igst, taxable);
+
+        lines.add(itemRepo.save(SalesInvoiceItemEntity.builder()
+                .salesInvoiceId(invoice.getId())
+                // No order item: this is a charge on the order, not one of its goods.
+                .orderItemId(null)
+                .lineNumber(lineNo)
+                .productUuid(null)
+                .productName(CodFeeTaxResolver.SERVICE_NAME)
+                .description("Service charge — " + CodFeeTaxResolver.SERVICE_CODE)
+                .hsnCode(order.getCodFeeSacCode())
+                .quantity(1)
+                .unit("NOS")
+                .unitPrice(taxable)
+                .grossValue(taxable)
+                .discount(0L)
+                .taxableValue(taxable)
+                .gstRateBp(cgstRateBp + sgstRateBp + igstRateBp)
+                .cgstRateBp(cgstRateBp).cgstAmount(cgst)
+                .sgstRateBp(sgstRateBp).sgstAmount(sgst)
+                .igstRateBp(igstRateBp).igstAmount(igst)
+                .cessRateBp(0).cessAmount(0L)
+                .totalTax(tax)
+                .totalValue(taxable + tax)
+                .build()));
+
+        t.gross += taxable;
+        t.taxable += taxable;
+        t.cgst += cgst;
+        t.sgst += sgst;
+        t.igst += igst;
+    }
+
+    /**
+     * The basis-point rate a frozen amount implies, or 0 when the head was not
+     * charged.
+     *
+     * <p>Integer arithmetic, rounded half-up by adding half the divisor before
+     * dividing. Both operands are already-settled paise amounts, so there is no
+     * reason to introduce a floating-point value into a figure that goes onto a
+     * statutory document.
+     */
+    private static int rateBpOf(long amountPaise, long taxablePaise) {
+        if (amountPaise <= 0 || taxablePaise <= 0) return 0;
+        return (int) ((amountPaise * 10_000L + taxablePaise / 2) / taxablePaise);
     }
 
     private void applyTotals(SalesInvoiceEntity invoice, CustomerOrderEntity order, Totals t) {

@@ -34,7 +34,23 @@ public class AppController {
                 .path(((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest().getRequestURI())
                 .requestId(UUID.randomUUID().toString())
                 .version("1.0")
-                .build(), code == ResponseCode.CREATED ? HttpStatus.CREATED : HttpStatus.OK);
+                .build(), statusOf(code));
+    }
+
+    /**
+     * The HTTP status a response code carries.
+     *
+     * <p>Extracted from the inline ternary this replaced so that ACCEPTED can mean
+     * 202 — the Engineering anomaly scan returns a scan id and runs asynchronously,
+     * and reporting that as 200 would tell a client the work was finished. Every
+     * other code keeps the status it already had.
+     */
+    protected static HttpStatus statusOf(ResponseCode code) {
+        return switch (code) {
+            case CREATED -> HttpStatus.CREATED;
+            case ACCEPTED -> HttpStatus.ACCEPTED;
+            default -> HttpStatus.OK;
+        };
     }
 
     public ResponseEntity<Response> success(ResponseCode code, Object message) {
@@ -44,7 +60,7 @@ public class AppController {
                 .path(((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest().getRequestURI())
                 .requestId(UUID.randomUUID().toString())
                 .version(AppConfig.getVersion())
-                .build(), code == ResponseCode.CREATED ? HttpStatus.CREATED : HttpStatus.OK);
+                .build(), statusOf(code));
     }
 
 }

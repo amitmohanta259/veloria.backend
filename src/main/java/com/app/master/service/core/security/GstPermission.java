@@ -37,6 +37,23 @@ public final class GstPermission {
     public static final String FILE_RETURN         = "FILE_RETURN";
     public static final String ADMIN_GST           = "ADMIN_GST";
 
+    // ── Engineering (P0-17) ──────────────────────────────────────────────────
+    //
+    // Added here rather than in a parallel scheme: the authentication converter
+    // already expands a token's roles into authorities, and @PreAuthorize already
+    // reads them, so Engineering reuses the mechanism that guards every other
+    // administrative endpoint.
+    //
+    // Running a scan is separated from viewing its results on purpose. A scan is a
+    // read-only operation, but it is the one Engineering action that consumes
+    // database resources, so the ability to start one is a narrower grant than the
+    // ability to read what it found.
+    public static final String ENGINEERING_VIEW              = "ENGINEERING_VIEW";
+    public static final String ENGINEERING_ANOMALY_VIEW      = "ENGINEERING_ANOMALY_VIEW";
+    public static final String ENGINEERING_ANOMALY_RUN       = "ENGINEERING_ANOMALY_RUN";
+    public static final String ENGINEERING_TRANSACTION_AUDIT = "ENGINEERING_TRANSACTION_AUDIT";
+    public static final String ENGINEERING_COMPLIANCE_VIEW   = "ENGINEERING_COMPLIANCE_VIEW";
+
     // ── Roles ────────────────────────────────────────────────────────────────
 
     public static final String GST_VIEWER     = "GST_VIEWER";
@@ -44,6 +61,20 @@ public final class GstPermission {
     public static final String GST_ACCOUNTANT = "GST_ACCOUNTANT";
     public static final String GST_APPROVER   = "GST_APPROVER";
     public static final String GST_ADMIN      = "GST_ADMIN";
+
+    /**
+     * Sees anomalies but NOT the schema identifiers they point at.
+     *
+     * <p>The narrowest Engineering grant. It exists because "which table and column
+     * holds the bad value" is more sensitive than "this order's tax does not add up":
+     * the first maps the database, the second describes a transaction. Without a role
+     * at this level the distinction would be unenforceable in practice.
+     */
+    public static final String ENGINEERING_ANALYST = "ENGINEERING_ANALYST";
+    /** Reads Engineering findings including schema identifiers; cannot start a scan. */
+    public static final String ENGINEERING_VIEWER = "ENGINEERING_VIEWER";
+    /** Reads and runs. */
+    public static final String ENGINEERING_ADMIN  = "ENGINEERING_ADMIN";
 
     private static final Set<String> VIEWER_PERMS = Set.of(
             VIEW_GST, VIEW_GST_LEDGER, VIEW_ITC);
@@ -67,15 +98,31 @@ public final class GstPermission {
             union(ACCOUNTANT_PERMS, APPROVER_PERMS),
             Set.of(UNLOCK_PERIOD, FILE_RETURN, ADMIN_GST));
 
+    /** Findings only — no schema identifiers, no transaction audit, no scan. */
+    private static final Set<String> ENGINEERING_ANALYST_PERMS = Set.of(
+            ENGINEERING_ANOMALY_VIEW);
+
+    /** Read-only Engineering access: see findings, trace transactions, no scan. */
+    private static final Set<String> ENGINEERING_VIEWER_PERMS = Set.of(
+            ENGINEERING_VIEW, ENGINEERING_ANOMALY_VIEW,
+            ENGINEERING_TRANSACTION_AUDIT, ENGINEERING_COMPLIANCE_VIEW);
+
+    private static final Set<String> ENGINEERING_ADMIN_PERMS = union(
+            ENGINEERING_VIEWER_PERMS, Set.of(ENGINEERING_ANOMALY_RUN));
+
     private static final Map<String, Set<String>> ROLE_PERMISSIONS = Map.of(
             GST_VIEWER, VIEWER_PERMS,
             GST_OPERATOR, OPERATOR_PERMS,
             GST_ACCOUNTANT, ACCOUNTANT_PERMS,
             GST_APPROVER, APPROVER_PERMS,
-            GST_ADMIN, ADMIN_PERMS);
+            GST_ADMIN, ADMIN_PERMS,
+            ENGINEERING_ANALYST, ENGINEERING_ANALYST_PERMS,
+            ENGINEERING_VIEWER, ENGINEERING_VIEWER_PERMS,
+            ENGINEERING_ADMIN, ENGINEERING_ADMIN_PERMS);
 
     public static final List<String> ALL_ROLES = List.of(
-            GST_VIEWER, GST_OPERATOR, GST_ACCOUNTANT, GST_APPROVER, GST_ADMIN);
+            GST_VIEWER, GST_OPERATOR, GST_ACCOUNTANT, GST_APPROVER, GST_ADMIN,
+            ENGINEERING_ANALYST, ENGINEERING_VIEWER, ENGINEERING_ADMIN);
 
     /** Permissions carried by a role, or empty for an unknown role. */
     public static Set<String> permissionsOf(String role) {

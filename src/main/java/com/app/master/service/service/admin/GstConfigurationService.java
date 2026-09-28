@@ -33,6 +33,59 @@ public class GstConfigurationService {
     public static final String EWAYBILL_VALUE_THRESHOLD_PAISE    = "EWAYBILL_VALUE_THRESHOLD_PAISE";
     public static final String EWAYBILL_ENABLED                  = "EWAYBILL_ENABLED";
 
+    // ── Cash on delivery ─────────────────────────────────────────────────────
+    //
+    // The COD handling charge is a supply of a service, priced and taxed
+    // separately from the goods. Everything about it that a business or a tax
+    // adviser decides lives here rather than in code: the amount, the service
+    // code its rate is looked up by, whether the amount includes the tax, and
+    // whether it comes back on a refund.
+    //
+    // Two of these are deliberately unseeded. COD_FEE_SAC and COD_FEE_TAX_BASIS
+    // are unapproved tax decisions, and an unset value is the honest
+    // representation of that — not a default that quietly becomes policy.
+
+    /** Whether cash on delivery is offered at all. */
+    public static final String COD_ENABLED = "COD_ENABLED";
+
+    /** The handling charge, in paise. Approved at ₹50. */
+    public static final String COD_FEE_PAISE = "COD_FEE_PAISE";
+
+    /**
+     * The service code the charge's GST rate is looked up by, in
+     * {@code gst_tax_rules}.
+     *
+     * <p>No value is seeded. Which SAC a handling charge is supplied under is a
+     * tax determination, and there is no rate in the master to find without it.
+     */
+    public static final String COD_FEE_SAC = "COD_FEE_SAC";
+
+    /**
+     * Whether the charge is the taxable value or already includes the tax.
+     *
+     * <p>{@link #TAX_EXCLUSIVE} — the customer pays the charge plus tax on it.
+     * {@link #TAX_INCLUSIVE} — the customer pays the charge, and the tax is
+     * carved out of it.
+     *
+     * <p>No value is seeded, and there is no fallback. The two give the customer
+     * a different bill, so guessing is not a rounding difference — it is
+     * over- or under-charging.
+     */
+    public static final String COD_FEE_TAX_BASIS = "COD_FEE_TAX_BASIS";
+    public static final String TAX_EXCLUSIVE     = "EXCLUSIVE";
+    public static final String TAX_INCLUSIVE     = "INCLUSIVE";
+
+    /** Whether the charge is returned when an order is refunded. */
+    public static final String COD_FEE_REFUNDABLE = "COD_FEE_REFUNDABLE";
+
+    /**
+     * How the charge is described to the customer and on the invoice line.
+     *
+     * <p>A label. It carries no tax meaning — the GST classification comes from
+     * {@link #COD_FEE_SAC} alone, and no accounting description determines it.
+     */
+    public static final String COD_FEE_SERVICE_NAME = "COD_FEE_SERVICE_NAME";
+
     private final GstConfigurationRepository configRepo;
 
     /** The effective value for a key today, preferring an org-specific row. */
@@ -77,6 +130,53 @@ public class GstConfigurationService {
     public boolean shippingIsTaxable(Long organizationId) {
         return !EXEMPT.equalsIgnoreCase(
                 value(organizationId, SHIPPING_TAX_TREATMENT, TAXABLE_AT_LINE_RATE));
+    }
+
+    // ── Cash on delivery ─────────────────────────────────────────────────────
+
+    /** Whether cash on delivery is offered. Off unless configured on. */
+    public boolean codEnabled(Long organizationId) {
+        return booleanValue(organizationId, COD_ENABLED, false);
+    }
+
+    /** The approved handling charge, or empty when none is configured. */
+    public Optional<Long> codFeePaise(Long organizationId) {
+        return longValue(organizationId, COD_FEE_PAISE).filter(v -> v >= 0);
+    }
+
+    /** How the charge is described, falling back to the supplied default. */
+    public String codFeeServiceName(Long organizationId, String fallback) {
+        return value(organizationId, COD_FEE_SERVICE_NAME, fallback);
+    }
+
+    /** The service code the charge's rate is looked up by, or empty. */
+    public Optional<String> codFeeSac(Long organizationId) {
+        return value(organizationId, COD_FEE_SAC).map(String::trim).filter(s -> !s.isEmpty());
+    }
+
+    /**
+     * Whether the charge includes its tax.
+     *
+     * <p>Empty when unconfigured, and deliberately <em>not</em> defaulted. A
+     * caller that needs to know must treat "not decided" as a reason to stop, not
+     * as a reason to pick one.
+     */
+    public Optional<Boolean> codFeeTaxInclusive(Long organizationId) {
+        return value(organizationId, COD_FEE_TAX_BASIS).map(String::trim)
+                .filter(v -> TAX_INCLUSIVE.equalsIgnoreCase(v) || TAX_EXCLUSIVE.equalsIgnoreCase(v))
+                .map(TAX_INCLUSIVE::equalsIgnoreCase);
+    }
+
+    /**
+     * Whether the charge comes back on a refund.
+     *
+     * <p>Defaults to <b>not</b> refundable, which is the treatment the schema has
+     * expressed since the refund table was created: it has no column for the
+     * charge. Configuration can override it; silence keeps the existing rule
+     * rather than inventing a new one.
+     */
+    public boolean codFeeRefundable(Long organizationId) {
+        return booleanValue(organizationId, COD_FEE_REFUNDABLE, false);
     }
 
     public List<GstConfigurationEntity> forOrganization(Long organizationId) {

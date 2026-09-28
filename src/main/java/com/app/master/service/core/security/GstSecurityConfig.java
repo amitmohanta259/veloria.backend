@@ -48,6 +48,23 @@ public class GstSecurityConfig {
     };
 
     /**
+     * Engineering paths (P0-17).
+     *
+     * Authentication is enforced at the URL layer here, like {@link #GST_PATHS} and
+     * deliberately unlike {@link #ADMIN_TOKEN_PATHS}: the permissive pattern relies
+     * entirely on each method carrying {@code @PreAuthorize}, so a new endpoint that
+     * forgets the annotation would be reachable by anyone on the network. For a
+     * feature whose whole purpose is to expose where the data is wrong, the failure
+     * mode has to be a 401, not an open endpoint.
+     *
+     * The method annotations stay as well — defence in depth, and they are what
+     * distinguishes running a scan from reading one.
+     */
+    static final String[] ENGINEERING_PATHS = {
+            "/api/master/engineering/**"
+    };
+
+    /**
      * Administrative paths whose <em>state-altering</em> endpoints are guarded by
      * {@code @PreAuthorize}.
      *
@@ -98,6 +115,27 @@ public class GstSecurityConfig {
     }
 
     /**
+     * Engineering: authenticated at the URL layer, authorized per method.
+     *
+     * Ordered ahead of the admin-token chain so the stricter rule wins for
+     * /engineering/**; an anonymous request is refused before it reaches a
+     * controller.
+     */
+    @Bean
+    @Order(2)
+    public SecurityFilterChain engineeringFilterChain(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher(ENGINEERING_PATHS)
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .csrf(csrf -> csrf.disable())
+            .cors(cors -> {})
+            .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+            .oauth2ResourceServer(oauth -> oauth
+                    .jwt(jwt -> jwt.jwtAuthenticationConverter(gstAuthenticationConverter())));
+        return http.build();
+    }
+
+    /**
      * Decodes a bearer token on the administrative paths so {@code @PreAuthorize}
      * has an authenticated principal to judge.
      *
@@ -107,7 +145,7 @@ public class GstSecurityConfig {
      * request with a token is judged on the authorities it carries.
      */
     @Bean
-    @Order(2)
+    @Order(3)
     public SecurityFilterChain adminTokenFilterChain(HttpSecurity http) throws Exception {
         http
             .securityMatcher(ADMIN_TOKEN_PATHS)

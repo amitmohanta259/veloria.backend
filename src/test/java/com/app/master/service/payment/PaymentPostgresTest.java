@@ -9,6 +9,8 @@ import com.app.master.service.repository.admin.CustomerOrderRepository;
 import com.app.master.service.repository.payment.PaymentAttemptRepository;
 import com.app.master.service.service.admin.impl.SalesOrderServiceImpl;
 import com.app.master.service.service.payment.PaymentService;
+import com.app.master.service.support.AccountingResidue;
+import com.app.master.service.support.CodTestConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -74,6 +76,10 @@ class PaymentPostgresTest {
         buyerToken = newSession(buyerUuid);
         otherUuid = newUser();
         otherToken = newSession(otherUuid);
+        // These tests use COD as a payment mode to exercise idempotency and
+        // server-side pricing; since P0-14 the charge is configured rather than
+        // coded, so it has to be set up the way production is.
+        CodTestConfig.configure(jdbc);
     }
 
     private String newUser() {
@@ -115,9 +121,16 @@ class PaymentPostgresTest {
                 INSERT INTO customer_order (uuid, order_code, customer_id, customer_name, customer_email,
                                             delivery_location, currency, total_value, taxable_value,
                                             cgst_amount, sgst_amount, igst_amount, total_tax_amount,
-                                            shipping_value, cod_fee_paise, status, order_placed_at, active, archive)
+                                            shipping_value, cod_fee_paise, place_of_supply,
+                                            buyer_state_code, seller_state_code,
+                                            status, order_placed_at, active, archive)
                 VALUES (gen_random_uuid(), ?, ?, 'Automation Buyer', ?, '12 MG Road, Bengaluru', 'INR',
                         1180000, 1000000, 90000, 90000, 0, 180000, 50000, 0,
+                        -- A real order always carries these: checkout resolves the place of
+                        -- supply from the delivery address, and the COD charge cannot be told
+                        -- to be CGST/SGST or IGST without it. Karnataka both sides, so
+                        -- intra-state, matching the product figures above.
+                        '29', '29', '29',
                         'ORDER_PLACED', timezone('UTC', now()), true, false)
                 """, code, ownerUuid, "pay-" + ownerUuid.substring(0, 8) + "@automation.veloria.test");
         Long orderId = jdbc.queryForObject("SELECT id FROM customer_order WHERE order_code = ?", Long.class, code);
@@ -135,22 +148,44 @@ class PaymentPostgresTest {
             Long id = jdbc.query("SELECT id FROM customer_order WHERE order_code = ?",
                     rs -> rs.next() ? rs.getLong(1) : null, code);
             if (id == null) continue;
-            jdbc.update("DELETE FROM payment_refund WHERE customer_order_id = ?", id);
-            jdbc.update("DELETE FROM payment_attempt WHERE customer_order_id = ?", id);
+            // Journals BEFORE the payment and refund rows they are keyed on.
+            //
+            // This used to delete payments first and to remove only SALE journals.
+            // Both were wrong: a collection journal is keyed on the payment attempt,
+            // so deleting the attempt first leaves the journal orphaned — and since
+            // these tests now configure COD, choosing it posts a COD_FEE journal that
+            // was never being removed at all. Four orphans per run, which is exactly
+            // how the historical checksum moves.
             jdbc.update("""
                     DELETE FROM journal_entry_line WHERE journal_entry_id IN (
                         SELECT r.id FROM journal_entry r WHERE r.reverses_journal_id IN (
-                            SELECT je.id FROM journal_entry je WHERE je.source_type='SALE' AND je.source_id=?))
+                            SELECT je.id FROM journal_entry je
+                             WHERE je.source_type IN ('SALE','COD_FEE') AND je.source_id=?))
                     """, id);
             jdbc.update("""
                     DELETE FROM journal_entry WHERE reverses_journal_id IN (
-                        SELECT je.id FROM journal_entry je WHERE je.source_type='SALE' AND je.source_id=?)
+                        SELECT je.id FROM journal_entry je
+                         WHERE je.source_type IN ('SALE','COD_FEE') AND je.source_id=?)
                     """, id);
             jdbc.update("""
                     DELETE FROM journal_entry_line WHERE journal_entry_id IN (
-                        SELECT id FROM journal_entry WHERE source_type='SALE' AND source_id=?)
-                    """, id);
-            jdbc.update("DELETE FROM journal_entry WHERE source_type='SALE' AND source_id=?", id);
+                        SELECT id FROM journal_entry
+                         WHERE (source_type IN ('SALE','COD_FEE') AND source_id=?)
+                            OR (source_type='PAYMENT_COLLECTION' AND source_id IN
+                                (SELECT pa.id FROM payment_attempt pa WHERE pa.customer_order_id=?))
+                            OR (source_type='REFUND' AND source_id IN
+                                (SELECT pr.id FROM payment_refund pr WHERE pr.customer_order_id=?)))
+                    """, id, id, id);
+            jdbc.update("""
+                    DELETE FROM journal_entry
+                     WHERE (source_type IN ('SALE','COD_FEE') AND source_id=?)
+                        OR (source_type='PAYMENT_COLLECTION' AND source_id IN
+                            (SELECT pa.id FROM payment_attempt pa WHERE pa.customer_order_id=?))
+                        OR (source_type='REFUND' AND source_id IN
+                            (SELECT pr.id FROM payment_refund pr WHERE pr.customer_order_id=?))
+                    """, id, id, id);
+            jdbc.update("DELETE FROM payment_refund WHERE customer_order_id = ?", id);
+            jdbc.update("DELETE FROM payment_attempt WHERE customer_order_id = ?", id);
             jdbc.update("DELETE FROM customer_order_item WHERE customer_order_id = ?", id);
             jdbc.update("DELETE FROM customer_order WHERE id = ?", id);
         }
@@ -162,6 +197,10 @@ class PaymentPostgresTest {
             jdbc.update("DELETE FROM users WHERE uuid = ?::uuid", u);
         }
         users.clear();
+        CodTestConfig.restore(jdbc);
+
+        // Fail here rather than let residue move the historical checksum.
+        AccountingResidue.assertNone(jdbc);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -189,6 +228,51 @@ class PaymentPostgresTest {
 
     // ── the amount is the server's ───────────────────────────────────────────
 
+    /**
+     * The regression this phase was asked to pin.
+     *
+     * <p>An order with no place of supply used to reach the GST engine, which throws
+     * {@code IllegalStateException} rather than guess CGST/SGST versus IGST — and
+     * that surfaced as an HTTP 500. It is a business validation problem, not a server
+     * fault, so it must come back as a 400 with something a person can act on.
+     *
+     * <p>The validation is deliberately <em>not</em> relaxed. Both protections stand:
+     * a real order carries a place of supply, and an order without one is refused
+     * cleanly rather than taxed by guesswork.
+     */
+    @Test
+    @DisplayName("an order with no place of supply is refused cleanly, never with a 500")
+    void missingPlaceOfSupplyDoesNotReturn500() {
+        CustomerOrderEntity order = seedOrder(buyerUuid);
+        // Strip what checkout would normally have resolved from the address.
+        jdbc.update("UPDATE customer_order SET place_of_supply = NULL, buyer_state_code = NULL "
+                  + "WHERE id = ?", order.getId());
+
+        VeloriaException e = assertThrows(VeloriaException.class, () -> paymentService.initiate(
+                buyerToken, order.getOrderCode(), "COD", UUID.randomUUID().toString()));
+
+        // A 400, not a 500.
+        assertEquals(com.app.master.service.core.response.ResponseCode.BAD_REQUEST, e.getErrorCode(),
+                "a missing place of supply is a validation problem, not a server fault");
+        assertTrue(e.getMessage().contains("place of supply"),
+                "and the message must say what is missing: " + e.getMessage());
+        // assertThrows(VeloriaException.class, …) above is itself the proof that the
+        // raw IllegalStateException no longer escapes: before the fix this call threw
+        // that instead, and this test would fail on the type.
+        // Nothing was half-done.
+        CustomerOrderEntity after = orderRepo.findById(order.getId()).orElseThrow();
+        assertEquals(0L, after.getCodFeePaise() == null ? 0L : after.getCodFeePaise(),
+                "no charge may be written when it cannot be taxed");
+        assertNull(after.getCodFeeTaxResolution(), "and no resolution recorded");
+        assertEquals("ORDER_PLACED", after.getStatus(), "the order is untouched");
+
+        assertEquals(0, attemptRepo.findByCustomerOrderIdOrderBySequenceNoAscIdAsc(order.getId()).size(),
+                "no payment attempt is created");
+        assertEquals(0L, (long) jdbc.queryForObject(
+                "SELECT count(*) FROM journal_entry WHERE source_type = 'COD_FEE' AND source_id = ?",
+                Long.class, order.getId()), "and no journal is posted");
+    }
+
     @Test
     @DisplayName("COD payable is the invoice plus the approved handling charge, computed by the server")
     void codPayableIsServerComputed() throws Exception {
@@ -198,10 +282,26 @@ class PaymentPostgresTest {
                 buyerToken, order.getOrderCode(), "COD", UUID.randomUUID().toString());
 
         // 10,000 product + 1,800 GST + 500 transport + 50 COD fee = 12,350.00
-        assertEquals(1235000, s.amountPaise(), "server computes product + GST + transport + COD fee");
+        //
+        // The COD charge is ₹50 and the customer pays ₹50 — the fixture configures
+        // the production INCLUSIVE basis, so the GST is inside the charge rather than
+        // added to it. ₹42.37 of it is the taxable value and ₹7.63 the tax.
+        //
+        // This is the arithmetic P0-13 fixed. Before it, the invoice added the charge
+        // AND its tax and asked for 12,357.63 while the checkout screen quoted
+        // 12,350.00 — the customer shown one figure and billed another.
+        assertEquals(1235000, s.amountPaise(),
+                "server computes product + GST + transport + the COD charge, tax included");
         assertTrue(s.cashOnDelivery(), "COD must not open a gateway checkout");
         assertNull(s.razorpayOrderId(), "and must not create a Razorpay order");
-        assertEquals(5000L, orderRepo.findById(order.getId()).orElseThrow().getCodFeePaise());
+
+        CustomerOrderEntity saved = orderRepo.findById(order.getId()).orElseThrow();
+        assertEquals(5000L, saved.getCodFeePaise(), "the configured charge");
+        assertEquals(4237L, saved.getCodFeeTaxablePaise(), "₹42.37 taxable inside the ₹50");
+        assertEquals(763L, saved.getCodFeeTaxPaise(), "₹7.63 GST, the remainder");
+        assertEquals(5000L, saved.getCodFeeTaxablePaise() + saved.getCodFeeTaxPaise(),
+                "and the two sum to the charge, to the paisa");
+        assertEquals("RULE_APPLIED", saved.getCodFeeTaxResolution());
     }
 
     @Test

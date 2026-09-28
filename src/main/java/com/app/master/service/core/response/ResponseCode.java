@@ -26,6 +26,11 @@ public enum ResponseCode {
     DELETED,
     FETCHED,
     UPLOADED,
+    // 202 — the request was taken but the work is not finished. Added for the
+    // Engineering manual anomaly scan, which returns a scan id and runs
+    // asynchronously; holding the HTTP request open for the whole scan would tie a
+    // browser to a multi-minute database read.
+    ACCEPTED,
     CONFLICT,
     GENERIC_ERROR,
     ALREADY_EXIST,
