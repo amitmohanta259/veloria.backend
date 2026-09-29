@@ -1,0 +1,214 @@
+databaseChangeLog:
+
+  # ── Testing dashboard, defect register and traceability inventory ─────────
+  #
+  # Monitoring tables, like the engineering_anomaly_* family: the test runner and
+  # the defect register may write these and nothing else. No foreign key reaches a
+  # business table, so clearing test history can never touch an order or a journal.
+
+  # One execution of a test suite, triggered from the dashboard by a person.
+  - changeSet:
+      id: p018_engineering_test_run
+      author: veloria
+      changes:
+        - createTable:
+            tableName: engineering_test_run
+            columns:
+              - column: {name: id, type: BIGINT, autoIncrement: true, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: uuid, type: UUID, constraints: {nullable: false}}
+              # RUN-YYYYMMDD-NNNN — what a person quotes in a defect record.
+              - column: {name: run_number, type: VARCHAR(40), constraints: {nullable: false}}
+              - column: {name: triggered_by, type: VARCHAR(255), constraints: {nullable: false}}
+              # SMOKE | SANITY | UNIT | REGRESSION | E2E
+              - column: {name: test_type, type: VARCHAR(16), constraints: {nullable: false}}
+              # Comma-separated module keys, or null for every module.
+              - column: {name: modules, type: VARCHAR(400)}
+              - column: {name: environment, type: VARCHAR(32), constraints: {nullable: false}}
+              # QUEUED | RUNNING | COMPLETED | PARTIAL | FAILED | CANCELLED
+              - column: {name: status, type: VARCHAR(16), constraints: {nullable: false}}
+              # The allowlisted command that ran, for the audit trail. Never
+              # free-form input — see TestRunnerService.
+              - column: {name: command_label, type: VARCHAR(200)}
+              - column: {name: git_commit, type: VARCHAR(60)}
+              - column: {name: requested_at, type: TIMESTAMPTZ, constraints: {nullable: false}}
+              - column: {name: started_at, type: TIMESTAMPTZ}
+              - column: {name: completed_at, type: TIMESTAMPTZ}
+              - column: {name: total_count, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: passed_count, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: failed_count, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: skipped_count, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: blocked_count, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: failure_reason, type: TEXT}
+              - column: {name: log_path, type: VARCHAR(500)}
+              - column: {name: created, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: {nullable: false}}
+              - column: {name: modified, type: TIMESTAMPTZ}
+        - addUniqueConstraint: {tableName: engineering_test_run, columnNames: run_number, constraintName: uq_eng_run_number}
+        - addUniqueConstraint: {tableName: engineering_test_run, columnNames: uuid, constraintName: uq_eng_run_uuid}
+        - sql:
+            # One active run at a time. Two suites writing the same database at once
+            # corrupt each other's fixtures — the same reasoning as the anomaly scan.
+            sql: >
+              CREATE UNIQUE INDEX IF NOT EXISTS uq_eng_run_single_active
+              ON engineering_test_run ((status IS NOT NULL))
+              WHERE status IN ('QUEUED', 'RUNNING');
+              CREATE INDEX IF NOT EXISTS ix_eng_run_requested
+              ON engineering_test_run (requested_at DESC);
+            rollback: >
+              DROP INDEX IF EXISTS uq_eng_run_single_active;
+              DROP INDEX IF EXISTS ix_eng_run_requested;
+
+  # One test outcome within a run, parsed from the framework's own report.
+  - changeSet:
+      id: p018_engineering_test_result
+      author: veloria
+      changes:
+        - createTable:
+            tableName: engineering_test_result
+            columns:
+              - column: {name: id, type: BIGINT, autoIncrement: true, constraints: {primaryKey: true, nullable: false}}
+              - column:
+                  name: run_id
+                  type: BIGINT
+                  constraints: {nullable: false, references: 'engineering_test_run(id)', foreignKeyName: fk_eng_result_run}
+              # BACKEND | CUCUMBER | PLAYWRIGHT_CLIENT | PLAYWRIGHT_ADMIN
+              - column: {name: suite, type: VARCHAR(32), constraints: {nullable: false}}
+              - column: {name: module, type: VARCHAR(48)}
+              - column: {name: class_name, type: VARCHAR(300)}
+              - column: {name: test_name, type: VARCHAR(500), constraints: {nullable: false}}
+              # PASSED | FAILED | SKIPPED | BLOCKED
+              - column: {name: status, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: duration_ms, type: BIGINT}
+              - column: {name: failure_message, type: TEXT}
+              - column: {name: created, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: {nullable: false}}
+        - sql:
+            sql: >
+              CREATE INDEX IF NOT EXISTS ix_eng_result_run ON engineering_test_result (run_id, status);
+              CREATE INDEX IF NOT EXISTS ix_eng_result_name ON engineering_test_result (test_name);
+            rollback: >
+              DROP INDEX IF EXISTS ix_eng_result_run;
+              DROP INDEX IF EXISTS ix_eng_result_name;
+
+  # The defect register. A defect outlives the run that found it, keeps its
+  # identifier across reopenings, and never loses its evidence.
+  - changeSet:
+      id: p018_engineering_defect
+      author: veloria
+      changes:
+        - createTable:
+            tableName: engineering_defect
+            columns:
+              - column: {name: id, type: BIGINT, autoIncrement: true, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: uuid, type: UUID, constraints: {nullable: false}}
+              - column: {name: defect_number, type: VARCHAR(24), constraints: {nullable: false}}
+              # A deterministic key for "the same failure again", so a repeat
+              # reopens the original rather than creating a duplicate.
+              - column: {name: fingerprint, type: VARCHAR(80), constraints: {nullable: false}}
+              - column: {name: title, type: VARCHAR(400), constraints: {nullable: false}}
+              - column: {name: module, type: VARCHAR(64)}
+              - column: {name: feature, type: VARCHAR(200)}
+              - column: {name: route, type: VARCHAR(300)}
+              - column: {name: ui_element_id, type: VARCHAR(48)}
+              - column: {name: api_endpoint, type: VARCHAR(300)}
+              - column: {name: entity_name, type: VARCHAR(120)}
+              # BUG is the primary operational category; the technical subcategory
+              # is for filtering only and never delays recording a failure.
+              - column: {name: category, type: VARCHAR(32), constraints: {nullable: false}}
+              - column: {name: subcategory, type: VARCHAR(32)}
+              - column: {name: severity, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: priority, type: VARCHAR(16), constraints: {nullable: false}}
+              # NEW | CONFIRMED | IN_PROGRESS | FIXED | READY_FOR_RETEST
+              # | VERIFIED | CLOSED | REOPENED
+              - column: {name: status, type: VARCHAR(24), constraints: {nullable: false}}
+              - column: {name: description, type: TEXT}
+              - column: {name: expected_behavior, type: TEXT}
+              - column: {name: actual_behavior, type: TEXT}
+              - column: {name: preconditions, type: TEXT}
+              - column: {name: reproduction_steps, type: TEXT}
+              # Evidence. Sensitive values are redacted before they reach these
+              # columns — see DefectService.redact.
+              - column: {name: evidence_curl, type: TEXT}
+              - column: {name: evidence_request, type: TEXT}
+              - column: {name: evidence_response, type: TEXT}
+              - column: {name: evidence_db_before, type: TEXT}
+              - column: {name: evidence_db_after, type: TEXT}
+              - column: {name: screenshot_path, type: VARCHAR(500)}
+              - column: {name: root_cause, type: TEXT}
+              - column: {name: proposed_resolution, type: TEXT}
+              - column: {name: actual_fix, type: TEXT}
+              - column: {name: changed_files, type: TEXT}
+              - column: {name: regression_test, type: VARCHAR(500)}
+              - column: {name: first_seen_run, type: VARCHAR(40)}
+              - column: {name: last_seen_run, type: VARCHAR(40)}
+              - column: {name: retest_run, type: VARCHAR(40)}
+              - column: {name: reopen_count, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: opened_at, type: TIMESTAMPTZ, constraints: {nullable: false}}
+              - column: {name: fixed_at, type: TIMESTAMPTZ}
+              - column: {name: verified_at, type: TIMESTAMPTZ}
+              - column: {name: closed_at, type: TIMESTAMPTZ}
+              - column: {name: opened_by, type: VARCHAR(255)}
+              - column: {name: closed_by, type: VARCHAR(255)}
+              - column: {name: created, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: {nullable: false}}
+              - column: {name: modified, type: TIMESTAMPTZ}
+        - addUniqueConstraint: {tableName: engineering_defect, columnNames: defect_number, constraintName: uq_eng_defect_number}
+        - addUniqueConstraint: {tableName: engineering_defect, columnNames: uuid, constraintName: uq_eng_defect_uuid}
+        - addUniqueConstraint: {tableName: engineering_defect, columnNames: fingerprint, constraintName: uq_eng_defect_fingerprint}
+        - sql:
+            sql: >
+              CREATE INDEX IF NOT EXISTS ix_eng_defect_status
+              ON engineering_defect (status, severity, opened_at DESC);
+            rollback: DROP INDEX IF EXISTS ix_eng_defect_status
+
+  # The traceability inventory: every UI element and API endpoint discovered in
+  # the application, with whether anything tests it.
+  #
+  # This is what makes a coverage claim checkable. A percentage computed from a
+  # denominator nobody enumerated is not a measurement.
+  - changeSet:
+      id: p018_engineering_test_inventory
+      author: veloria
+      changes:
+        - createTable:
+            tableName: engineering_test_inventory
+            columns:
+              - column: {name: id, type: BIGINT, autoIncrement: true, constraints: {primaryKey: true, nullable: false}}
+              # UI-ORDER-001, API-GST-014 — stable across rediscovery.
+              - column: {name: item_id, type: VARCHAR(48), constraints: {nullable: false}}
+              # UI_ELEMENT | API_ENDPOINT | ROUTE | ENTITY
+              - column: {name: item_kind, type: VARCHAR(24), constraints: {nullable: false}}
+              - column: {name: module, type: VARCHAR(64), constraints: {nullable: false}}
+              - column: {name: source_file, type: VARCHAR(400)}
+              - column: {name: route, type: VARCHAR(300)}
+              - column: {name: element_type, type: VARCHAR(48)}
+              - column: {name: label, type: VARCHAR(400)}
+              # UNTESTED | PASSED | FAILED | BLOCKED
+              - column: {name: test_status, type: VARCHAR(16), defaultValue: UNTESTED, constraints: {nullable: false}}
+              - column: {name: covering_test, type: VARCHAR(500)}
+              - column: {name: blocked_reason, type: VARCHAR(400)}
+              - column: {name: last_run, type: VARCHAR(40)}
+              - column: {name: notes, type: TEXT}
+              - column: {name: discovered_at, type: TIMESTAMPTZ, defaultValueComputed: now(), constraints: {nullable: false}}
+              - column: {name: modified, type: TIMESTAMPTZ}
+        - addUniqueConstraint: {tableName: engineering_test_inventory, columnNames: item_id, constraintName: uq_eng_inventory_item}
+        - sql:
+            sql: >
+              CREATE INDEX IF NOT EXISTS ix_eng_inventory_status
+              ON engineering_test_inventory (item_kind, module, test_status);
+            rollback: DROP INDEX IF EXISTS ix_eng_inventory_status
+
+  - changeSet:
+      id: p018_testing_readonly_grants
+      author: veloria
+      changes:
+        - sql:
+            splitStatements: false
+            sql: >
+              DO $$
+              BEGIN
+                IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'veloria_scan_ro') THEN
+                  GRANT SELECT ON engineering_test_run       TO veloria_scan_ro;
+                  GRANT SELECT ON engineering_test_result    TO veloria_scan_ro;
+                  GRANT SELECT ON engineering_defect         TO veloria_scan_ro;
+                  GRANT SELECT ON engineering_test_inventory TO veloria_scan_ro;
+                END IF;
+              END $$;
+            rollback: SELECT 1

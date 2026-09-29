@@ -177,3 +177,5 @@ databaseChangeLog:
       file: db/changesets/CodGstServiceRuleP013.yaml
   - include:
       file: db/changesets/EngineeringAnomalyP017.yaml
+  - include:
+      file: db/changesets/TestingDashboardP018.yaml
